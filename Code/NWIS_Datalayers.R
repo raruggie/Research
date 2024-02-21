@@ -1151,80 +1151,9 @@ df.FB # FRAGUN BASIN
 
 #### CSA map ####
 
-# test watershed:
+# use function in lappy to calcualte watershed percent CSA:
 
-i<-21
-
-WA<-df.sf.NWIS[i,]
-
-mapview(WA)
-
-# Step 1: create slope map.to do this:
-
-# convert watershed boundary to spatvector:
-
-vect.boundary<-vect(WA)
-
-# reproject to match DEM raster crs:
-
-vect.boundary<-project(vect.boundary, crs(DEM.NWIS))
-
-# crop NED:
-
-rast.NED<-crop(DEM.NWIS, vect.boundary, mask=T)
-
-# create slope map:
-
-rast.slope<-terrain(rast.NED, "slope")
-
-# bin slope into three categories:
-
-m<-c(0,5,1,5,10,2,10,100,3)
-rclmat<-matrix(m, ncol = 3, byrow = T)
-rast.slope<-classify(rast.slope,rclmat,include.lowest=T)
-
-# rename raster levels:
-
-rast.slope<-as.factor(rast.slope)
-
-levels(rast.slope)<-data.frame(ID=1:3,Slope=c('<5%','5-10%','>10%'))
-
-# Step 2: soils:
-
-# load in HSG map:
-
-load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', df.sf.NWIS$Name[i], '.Rdata'))
-
-# convert to spatvector:
-
-vect.soils<-vect(df.sf.soils%>%drop_na(hydgrpdcd))
-
-# replace X/D HSG with just D:
-
-vect.soils$hydgrpdcd<-gsub(".*/.*", "D", vect.soils$hydgrpdcd)
-
-# rasterize:
-
-rast.soils<-rasterize(vect.soils, rast.slope, field = 'hydgrpdcd')
-
-# classify levels to only 3 (will be used later for good, fair, and poor drainage):
-
-m<-c(0,1,1,2,2,3,3,3)
-rclmat<-matrix(m, ncol = 2, byrow = T)
-rast.soils<-classify(rast.soils,rclmat)
-
-# set levels to a name:
-
-rast.soils<-as.factor(rast.soils)
-levels(rast.soils)<-data.frame(ID = 1:3, Drainage = c('Good', 'Fair', 'Poor'))
-
-# Step 3: Land use:
-
-# load landuse raster:
-
-rast.LU<-rast(names.2006[i]) # no need to crop for now...
-
-# 
+l.CSA<-lapply(seq_along(df.sf.NWIS$Name), \(i) fun.CSA_watershed_percent(i, df.sf.NWIS[i,]))
 
 
 

@@ -611,4 +611,133 @@ fun.FRAGUN_BASIN<-function(i, landscape){
   
 }
 
+# function to determine percent CSA in watershed:
+
+i<-1
+
+WA<-df.sf.NWIS[i,]
+
+fun.CSA_watershed_percent<-function(i, WA){
+  
+  print(i)
+  
+  # mapview(WA)
+  
+  # Step 1: create slope map.to do this:
+  
+  # convert watershed boundary to spatvector:
+  
+  vect.boundary<-vect(WA)
+  
+  # reproject to match DEM raster crs:
+  
+  vect.boundary<-project(vect.boundary, crs(DEM.NWIS))
+  
+  # crop NED:
+  
+  rast.NED<-crop(DEM.NWIS, vect.boundary, mask=T)
+  
+  # create slope map:
+  
+  rast.slope<-terrain(rast.NED, "slope")
+  
+  # bin slope into three categories:
+  
+  m<-c(0,5,1,5,10,2,10,100,3)
+  rclmat<-matrix(m, ncol = 3, byrow = T)
+  rast.slope<-classify(rast.slope,rclmat,include.lowest=T)
+  
+  # rename raster levels:
+  
+  rast.slope<-as.factor(rast.slope)
+  
+  levels(rast.slope)<-data.frame(ID=1:3,Slope=c('<5%','5-10%','>10%'))
+  
+  # Step 2: soils:
+  
+  # load in HSG map:
+  
+  load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', df.sf.NWIS$Name[i], '.Rdata'))
+  
+  # convert to spatvector:
+  
+  vect.soils<-vect(df.sf.soils%>%drop_na(hydgrpdcd))
+  
+  # replace X/D HSG with just D:
+  
+  vect.soils$hydgrpdcd<-gsub(".*/.*", "D", vect.soils$hydgrpdcd)
+  
+  # rasterize:
+  
+  rast.soils<-rasterize(vect.soils, rast.slope, field = 'hydgrpdcd')
+  
+  # classify levels to only 3 (will be used later for good, fair, and poor drainage):
+  
+  m<-c(0,1,1,2,2,3,3,3)
+  rclmat<-matrix(m, ncol = 2, byrow = T)
+  rast.soils<-classify(rast.soils,rclmat)
+  
+  # set levels to a name:
+  
+  rast.soils<-as.factor(rast.soils)
+  levels(rast.soils)<-data.frame(ID = 1:3, Drainage = c('Good', 'Fair', 'Poor'))
+  
+  # Step 3: Land use:
+  
+  # load landuse raster:
+  
+  rast.LU<-rast(names.2006[i]) # no need to crop for now...
+  
+  # set levels:
+  
+  levels(rast.LU)<-levels(rast.LU)[[1]]%>%drop_na(Class)%>%left_join(., legend%>%select(ID, Class4), by = 'ID')%>%select(-Class)%>%rename(Dev = Class4)
+  
+  # classify down to just two levels:
+  
+  m<-c(legend$ID, ifelse(legend$Class4=='dev', 1, 0))
+  rclmat<-matrix(m, ncol = 2, byrow = F)
+  rast.LU<-classify(rast.LU,rclmat)
+  rast.LU<-as.factor(rast.LU)
+  levels(rast.LU)<-data.frame(ID = 0:1, Dev = c('undev', 'dev'))
+  
+  # Step 4: combine into single map:
+  
+  # first check crs:
+  
+  # crs(rast.slope)
+  # crs(rast.soils)
+  # crs(rast.LU)
+  
+  # reproject rast.LU:
+  
+  rast.LU<-project(rast.LU, rast.soils)
+  
+  # now merge maps:
+  
+  CSA.map<-concats(rast.slope, rast.soils)
+  
+  CSA.map<-concats(CSA.map, rast.LU)
+  
+  # turn into binary CSA map:
+  
+  levels(CSA.map)<-data.frame(ID = 0:17, CSA = c(rep('non-CSA',5), 'CSA', rep('non-CSA', 3), 'CSA', 'non-CSA', 'CSA', 'non-CSA', 'CSA', 'non-CSA', 'CSA', 'non-CSA', 'CSA'))
+  m<-c(0:17,ifelse(levels(CSA.map)[[1]]$CSA=='CSA', 1,0))
+  rclmat<-matrix(m, ncol = 2, byrow = F)
+  CSA.map<-classify(CSA.map,rclmat)
+  CSA.map<-as.factor(CSA.map)
+  levels(CSA.map)<-data.frame(ID = 0:1, CSA = c('non-CSA', 'CSA'))
+  
+  # sum up CSA area for watershed:
+  
+  df.CSA<-freq(CSA.map)
+  
+  # determine percent watershed:
+  
+  df.CSA$perc <- round(100 * df.CSA$count / sum(df.CSA$count), 1)
+  
+  percent.CSA<-df.CSA$perc[df.CSA$value=='CSA']
+  
+  return(percent.CSA)
+  
+}
 
