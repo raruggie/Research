@@ -428,6 +428,31 @@ temp%>%
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### Land Use: NLCD ####
 
 # the CDL and NLCD differ in that the CDL combined Pasture and grassland while the nLCD does not
@@ -581,6 +606,38 @@ df.compare.G2to2016%>%
   ggplot(., aes(x = STAID, y = name, fill = value)) +
   geom_tile()+
   scale_fill_gradient2(low = "red", high = "yellow")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #### Land Use: CDL ####
 
@@ -815,51 +872,92 @@ y<-df.sf.NWIS%>%filter(Name %in% keep)%>%select(Name, starts_with('SSURGO'))
 
 # the first running it got to the 6th site:
 
-l.soils.1to6<-lapply(df.sf.NWIS$Name[1:6], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-save(l.soils.1to6, file='Processed_Data/l.soils.1.Rdata')
+# l.soils.1to6<-lapply(df.sf.NWIS$Name[1:6], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.1to6, file='Processed_Data/l.soils.1.Rdata')
 load('Processed_Data/l.soils.1.Rdata')
 
 # the second running it got to 20th site:
 
-l.soils.7to20<-lapply(df.sf.NWIS$Name[7:20], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-save(l.soils.7to20, file='Processed_Data/l.soils.2.Rdata')
+# l.soils.7to20<-lapply(df.sf.NWIS$Name[7:20], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.7to20, file='Processed_Data/l.soils.2.Rdata')
 load('Processed_Data/l.soils.2.Rdata')
 
-# third running...
-l.soils.21<-lapply(df.sf.NWIS$Name[21], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-save(l.soils.21, file='Processed_Data/l.soils.3.Rdata')
-load('Processed_Data/l.soils.2.Rdata')
+# third:
+
+# l.soils.21<-lapply(df.sf.NWIS$Name[21], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.21, file='Processed_Data/l.soils.3.Rdata')
+load('Processed_Data/l.soils.3.Rdata')
 
 # fourth:
-l.soils.22to39<-lapply(df.sf.NWIS$Name[22:39], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-save(l.soils.22to39, file='Processed_Data/l.soils.4.Rdata')
-load('Processed_Data/l.soils.2.Rdata')
+
+# l.soils.22to39<-lapply(df.sf.NWIS$Name[22:39], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.22to39, file='Processed_Data/l.soils.4.Rdata')
+load('Processed_Data/l.soils.4.Rdata')
 
 # fifth:
-l.soils.40tox<-lapply(df.sf.NWIS$Name[40:42], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.22to39, file='Processed_Data/l.soils.5.Rdata')
-load('Processed_Data/l.soils.2.Rdata')
 
+# l.soils.40tox<-lapply(df.sf.NWIS$Name[40:42], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.40tox, file='Processed_Data/l.soils.5.Rdata')
+load('Processed_Data/l.soils.5.Rdata')
 
+# combine into single list:
 
+l.soils<-c(l.soils.1to6, l.soils.7to20, l.soils.21, l.soils.22to39, l.soils.40tox)
 
-names(l.soils)<-df.sf.NWIS$Name[1:5]
+names(l.soils)<-df.sf.NWIS$Name
 
 # look at how much of the watershed is represented:
 
-lapply(l.soils, \(i) sum(i$Watershed_Percent))
+sapply(l.soils, \(i) sum(i$Watershed_Percent))
 
-df.test.soils<-bind_rows(l.test.soils, .id = 'STAID')%>%filter(HSG %in% c('A', 'B', 'C', 'D'))%>%rename(Datalayers = 3)
+# combine into single dataframe:
+# *note that when you bind_rows the order of the stations is similar to sort() which is different than the order in the list. e.g. try running: df.sf.NWIS$Name==sort(df.sf.NWIS$Name)
 
+df.soils<-bind_rows(l.soils, .id = 'Name')
 
+# replace X/D HSG with just D:
 
+df.soils$HSG<-gsub(".*/.*", "D", df.soils$HSG)
 
+# group by and summarize HSG D for all sites:
 
+df.soils<-df.soils%>%group_by(Name, HSG)%>%summarise(Watershed_Percent = sum(Watershed_Percent))
 
+# pivot wider:
 
+df.soils<-df.soils%>%pivot_wider(names_from = HSG, values_from = Watershed_Percent)
 
+# set na to zero:
 
+df.soils[is.na(df.soils)]<-0
 
+# create column of HSG coverage:
+
+df.soils$HSG.coverage<-rowSums(df.soils[, sapply(df.soils, is.numeric)])
+
+# QA with streamstats: to do this:
+
+# merge df.soils with SSURGO columns from df.sf.NWIS:
+
+df.compare.G2tosoils<-left_join(df.soils, df.sf.NWIS%>%select(Name, starts_with('SSURGO'))%>%mutate(across(where(is.numeric), ~./100)), by = 'Name')%>%
+  mutate(A_diff = (A-SSURGOA)*100, B_diff = (B-SSURGOB)*100)%>%
+  arrange(abs(A_diff))%>%
+  ungroup()
+
+# look at map of sites with over 10% A_diff:
+
+temp<-df.compare.G2tosoils%>%filter(A_diff>10)
+
+mapview(temp$geometry)
+
+# look at map of sites with low HSG coverage:
+
+left_join(df.sf.NWIS, df.soils, by = 'Name')%>%filter(HSG.coverage<.85)%>%mapview(., zcol = 'HSG.coverage')
+
+# can see that it is not the ADK sites butratherthe catskill sites (and some urban sites in CNY) that have low HSG coverage
+# I think this means that it is not poor ssurgo coverage, since there are map units for the entire watersehed (I am not showing that here but it is true) rather there is not HSG (NA) for those units
+
+#
 
 
 
@@ -969,6 +1067,51 @@ df.compare.G2toNHD%>%
 
 #
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Landscape Metrics (FRAGUN BASIN) ####
+
+# 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ####~~~~Finalize DataLayers ~~~~####
 
 # the follwoing dataframes contain predictors for the sites:
@@ -979,7 +1122,9 @@ df.NWIS.CDL.2008 # land use CDL (crop specific)
 
 df.NWIS.DEM # elevation
 
+df.soils #soils
 
+df.RIP # riparian buffer percent land use
 
 
 

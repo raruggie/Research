@@ -43,6 +43,8 @@ legend_2<-data.frame(ID2 = unique(legend$ID2))%>%
 
 legend<-left_join(legend, legend_2, by = 'ID2')
 
+legend$Class4<-c('undev','undev', rep('dev',4), rep('undev', 10), 'dev', 'dev', 'undev', 'undev')
+
 # function to determine season from date:
 
 getSeason <- function(DATES) {
@@ -402,7 +404,7 @@ fun.SURRGO_HSG<-function(site_no, sf.df){
 }
 
 
-#### fun.NHD.RIP.buffers ####
+# function to calcualte 100 and 800 meter ripiran buffer percent land use:
 
 # i<-39
 
@@ -565,6 +567,42 @@ fun.NHD.RIP.buffers<-function(i, df.site_metadata){
   return(df.RIP)
 }
 
+# function to calcualte FRAGUN_BASIN:
 
+i<-1
+
+landscape<-l.rast.NWIS.NLCD.2001[[i]]
+
+fun.FRAGUN_BASIN<-function(i, landscape){
+  
+  print(i)
+  
+  # check to make sure landscape raster can be used in landscapemetrics functions:
+  
+  print(check_landscape(landscape))
+  
+  # crop landscape raster to watershed boundary: to do this:
+  
+  # load in wtershed boundary as Spatvector:
+  
+  vect.boundary<-vect(df.sf.NWIS[i])
+  
+  # reproject vector to match raster:
+  
+  vect.boundary<-terra::project(vect.boundary, crs(landscape))
+  
+  # crop:
+  
+  landscape<-crop(landscape, vect.boundary, mask=TRUE)
+  
+  # calcualte core area percentage of landscape (class level):
+  
+  cpland<-lsm_c_cpland(landscape,directions = 8,consider_boundary = FALSE,edge_depth = 1)
+  
+  # merge legend Class 4 to determine undeveloped classes:
+  
+  cpland.undev<-left_join(x, legend%>%select(ID, Class4)%>%mutate(ID = as.integer(ID)), by = c('class'= 'ID'))%>%filter(Class4 == 'undev')
+  
+}
 
 
