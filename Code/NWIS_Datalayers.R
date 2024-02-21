@@ -1153,7 +1153,7 @@ df.FB # FRAGUN BASIN
 
 # test watershed:
 
-i<-1
+i<-21
 
 WA<-df.sf.NWIS[i,]
 
@@ -1193,7 +1193,39 @@ levels(rast.slope)<-data.frame(ID=1:3,Slope=c('<5%','5-10%','>10%'))
 
 # load in HSG map:
 
-load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
+load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', df.sf.NWIS$Name[i], '.Rdata'))
+
+# convert to spatvector:
+
+vect.soils<-vect(df.sf.soils%>%drop_na(hydgrpdcd))
+
+# replace X/D HSG with just D:
+
+vect.soils$hydgrpdcd<-gsub(".*/.*", "D", vect.soils$hydgrpdcd)
+
+# rasterize:
+
+rast.soils<-rasterize(vect.soils, rast.slope, field = 'hydgrpdcd')
+
+# classify levels to only 3 (will be used later for good, fair, and poor drainage):
+
+m<-c(0,1,1,2,2,3,3,3)
+rclmat<-matrix(m, ncol = 2, byrow = T)
+rast.soils<-classify(rast.soils,rclmat)
+
+# set levels to a name:
+
+rast.soils<-as.factor(rast.soils)
+levels(rast.soils)<-data.frame(ID = 1:3, Drainage = c('Good', 'Fair', 'Poor'))
+
+# Step 3: Land use:
+
+# load landuse raster:
+
+rast.LU<-rast(names.2006[i]) # no need to crop for now...
+
+# 
+
 
 
 #
