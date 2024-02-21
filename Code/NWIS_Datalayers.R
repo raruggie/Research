@@ -462,22 +462,26 @@ temp%>%
 # download: to do this:
 
 # NLCD is not working when trying to download based on the entire polygon df, so going to use lapply to download individually:
-# 
+
+# l.rast.NWIS.NLCD.2001 <- lapply(seq_along(df.sf.NWIS$Name), \(i) get_nlcd(template = st_cast(df.sf.NWIS, "MULTIPOLYGON")[i,], label = as.character(i), year = 2001))
 # l.rast.NWIS.NLCD.2006 <- lapply(seq_along(df.sf.NWIS$Name), \(i) get_nlcd(template = st_cast(df.sf.NWIS, "MULTIPOLYGON")[i,], label = as.character(i), year = 2006))
 # l.rast.NWIS.NLCD.2016 <- lapply(seq_along(df.sf.NWIS$Name), \(i) get_nlcd(template = st_cast(df.sf.NWIS, "MULTIPOLYGON")[i,], label = as.character(i), year = 2016))
 
 # convert to SpatRasters:
 
+# l.rast.NWIS.NLCD.2001<-lapply(l.rast.NWIS.NLCD.2001, rast)
 # l.rast.NWIS.NLCD.2006<-lapply(l.rast.NWIS.NLCD.2006, rast)
 # l.rast.NWIS.NLCD.2016<-lapply(l.rast.NWIS.NLCD.2016, rast)
 
 # save SpatRasters as tif files:
 
+# lapply(seq_along(l.rast.NWIS.NLCD.2001), \(i) writeRaster(l.rast.NWIS.NLCD.2001[[i]], filename = paste0('Downloaded_Data/NLCD_rasters/NLCD_2001_SpatRaster_for', df.sf.NWIS$Name[i], '.tif'), overwrite=TRUE))
 # lapply(seq_along(l.rast.NWIS.NLCD.2006), \(i) writeRaster(l.rast.NWIS.NLCD.2006[[i]], filename = paste0('Downloaded_Data/NLCD_rasters/NLCD_2006_SpatRaster_for', df.sf.NWIS$Name[i], '.tif'), overwrite=TRUE))
 # lapply(seq_along(l.rast.NWIS.NLCD.2016), \(i) writeRaster(l.rast.NWIS.NLCD.2016[[i]], filename = paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.sf.NWIS$Name[i], '.tif'), overwrite=TRUE))
 
 # create vectors of raster names 
 
+names.2001<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2001_SpatRaster_for', df.sf.NWIS$Name, '.tif')
 names.2006<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2006_SpatRaster_for', df.sf.NWIS$Name, '.tif')
 names.2016<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.sf.NWIS$Name, '.tif')
 
@@ -1092,10 +1096,23 @@ df.compare.G2toNHD%>%
 
 #### Landscape Metrics (FRAGUN BASIN) ####
 
-# 
+# Based on Ritters and others (2000) method, using 3x3 processing 
+# window.  Number given here is: (100 - percent "interior" pixels 
+# of undeveloped land (Riiters class 1)).  Definition of 
+# "undeveloped" land = all land which is not urban nor agriculture,
+# from NLCD01 data
+
+library(landscapemetrics)
+
+# load in watershed rasters:
+
+l.rast.NWIS.NLCD.2001<-lapply(names.2001, rast)
+
+# use function in lapply to estimate FRAGUN BASIN for each watershed:
 
 
 
+#
 
 
 
