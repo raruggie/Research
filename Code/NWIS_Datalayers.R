@@ -822,53 +822,10 @@ df.compare.G2toNED%>%
 
 #### Soils: SURRGO ####
 
-# example workflow:
+# full workflow:
 
 # created function to download and get watershed percent of HSG:
 # the funciton takes a single site from a sf.df, so use it in lapply for all sites:
-# want to test two random sites to GAGES 2 and streamstats HSG values:
-
-# get two random sites from df.sf.NWIS:
-
-keep<-sample(df.sf.NWIS$Name, 2)
-
-# check map (to make sure the sites arent too big since I need to download soils data for them):
-
-x<-df.sf.NWIS%>%filter(Name %in% keep)
-mapview(x, zcol = 'Name')
-
-# looks like two good random sites
-
-# get SURRGO for these sites:
-
-l.test.soils<-lapply(keep, \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-
-names(l.test.soils)<-keep
-
-# look at how much of the watershed is represented:
-
-lapply(l.test.soils, \(i) sum(i$Watershed_Percent))
-
-df.test.soils<-bind_rows(l.test.soils, .id = 'STAID')%>%filter(HSG %in% c('A', 'B', 'C', 'D'))%>%rename(Datalayers = 3)
-
-# QA with GAGES II:
-
-x<-df.G2.reduced%>%
-  select(STAID, c('HGA', 'HGB', 'HGC', 'HGD'))%>%
-  mutate(across(where(is.numeric), ~./100))%>%
-  rename('A' = 2, 'B'=3, 'C'=4, 'D'=5)%>%
-  filter(STAID %in% keep)%>%
-  pivot_longer(cols=-STAID, names_to = 'HSG', values_to = 'G2')%>%
-  left_join(., df.test.soils, by = c('STAID', 'HSG'))%>%
-  mutate(Diff = Datalayers-G2)
-
-# QA that dfwith streamstats (in df.sf.NWIS):
-
-y<-df.sf.NWIS%>%filter(Name %in% keep)%>%select(Name, starts_with('SSURGO'))
-
-# discrepancy!
-
-# full workflow:
 
 # get SURRGO for these sites:
 
@@ -1106,11 +1063,34 @@ library(landscapemetrics)
 
 # load in watershed rasters:
 
-l.rast.NWIS.NLCD.2001<-lapply(names.2001, rast)
+# l.rast.NWIS.NLCD.2001<-lapply(names.2001, rast)
 
 # use function in lapply to estimate FRAGUN BASIN for each watershed:
 
+# l.FB<-lapply(seq_along(l.rast.NWIS.NLCD.2001), \(i) fun.FRAGUN_BASIN(i, l.rast.NWIS.NLCD.2001[[i]]))
 
+# names(l.FB)<-df.sf.NWIS$Name
+
+# create df:
+
+# df.FB<-bind_rows(l.FB,.id='STAID')%>%pivot_longer(cols = everything(),names_to = 'STAID',values_to = 'FRAGUN')
+
+# save:
+
+# save(df.FB, file='Processed_Data/df.FRAGUN_BASIN.Rdata')
+load('Processed_Data/df.FRAGUN_BASIN.Rdata')
+
+# QA with G2:
+
+df.compare.G2toLPM<-left_join(df.FB, df.G2.reduced%>%select(STAID, FRAGUN_BASIN), by = 'STAID')%>%
+  mutate(Diff = FRAGUN-FRAGUN_BASIN)%>%
+  arrange(abs(Diff))
+
+# look at map:
+
+temp<-df.compare.G2toLPM%>%left_join(df.sf.NWIS,., by=c('Name'='STAID'))
+
+mapview(temp, zcol='Diff')
 
 #
 
@@ -1142,6 +1122,98 @@ df.NWIS.DEM # elevation
 df.soils #soils
 
 df.RIP # riparian buffer percent land use
+
+df.FB # FRAGUN BASIN
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### CSA map ####
+
+# test watershed:
+
+i<-1
+
+WA<-df.sf.NWIS[i,]
+
+mapview(WA)
+
+# Step 1: create slope map.to do this:
+
+# convert watershed boundary to spatvector:
+
+vect.boundary<-vect(WA)
+
+# reproject to match DEM raster crs:
+
+vect.boundary<-project(vect.boundary, crs(DEM.NWIS))
+
+# crop NED:
+
+rast.NED<-crop(DEM.NWIS, vect.boundary, mask=T)
+
+# create slope map:
+
+rast.slope<-terrain(rast.NED, "slope")
+
+# bin slope into three categories:
+
+m<-c(0,5,1,5,10,2,10,100,3)
+rclmat<-matrix(m, ncol = 3, byrow = T)
+rast.slope<-classify(rast.slope,rclmat,include.lowest=T)
+
+# rename raster levels:
+
+rast.slope<-as.factor(rast.slope)
+
+levels(rast.slope)<-data.frame(ID=1:3,Slope=c('<5%','5-10%','>10%'))
+
+# Step 2: soils:
+
+# load in HSG map:
+
+load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
+
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

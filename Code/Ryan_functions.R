@@ -571,7 +571,7 @@ fun.NHD.RIP.buffers<-function(i, df.site_metadata){
 
 i<-1
 
-landscape<-l.rast.NWIS.NLCD.2001[[i]]
+# landscape<-l.rast.NWIS.NLCD.2001[[i]]
 
 fun.FRAGUN_BASIN<-function(i, landscape){
   
@@ -601,7 +601,13 @@ fun.FRAGUN_BASIN<-function(i, landscape){
   
   # merge legend Class 4 to determine undeveloped classes:
   
-  cpland.undev<-left_join(x, legend%>%select(ID, Class4)%>%mutate(ID = as.integer(ID)), by = c('class'= 'ID'))%>%filter(Class4 == 'undev')
+  cpland.undev<-left_join(cpland, legend%>%select(ID, Class4), by = c('class'= 'ID'))%>%filter(Class4 == 'undev')
+  
+  # take 100-sum of column to get FRAGUN BASIN:
+  
+  FRAGUN_BASIN<-100-sum(cpland.undev$value)
+  
+  return(FRAGUN_BASIN)
   
 }
 
