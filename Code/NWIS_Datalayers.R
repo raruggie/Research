@@ -904,14 +904,45 @@ df.soils[is.na(df.soils)]<-0
 
 df.soils$HSG.coverage<-rowSums(df.soils[, sapply(df.soils, is.numeric)])
 
+# multiple by watershed area to get sqmis of %HSG: to do this:
+
+# read in site metadata (with drainage area in sqmi):
+
+df.NWIS.TP_site_metadata<-read.csv("Raw_Data/df.NWIS.TP_site_metadata.csv", colClasses = c(site_no = "character"))%>%
+  filter(site_no %in% df.sf.NWIS$Name)%>%
+  select(site_no, drain_area_va)
+  
+# merge with df.soils and multpliy HSG columns by area:
+
+df.soils.sqmi<-df.soils%>%
+  left_join(., df.NWIS.TP_site_metadata, by = c('Name'='site_no'))%>%
+  mutate(across(c(A,B,C,D), ~.*drain_area_va))
+
 # QA with streamstats: to do this:
 
-# merge df.soils with SSURGO columns from df.sf.NWIS:
+# merge df.soils with SSURGO columns from df.sf.NWIS: to do this:
 
-df.compare.G2tosoils<-left_join(df.soils, df.sf.NWIS%>%select(Name, starts_with('SSURGO'))%>%mutate(across(where(is.numeric), ~./100)), by = 'Name')%>%
-  mutate(A_diff = (A-SSURGOA)*100, B_diff = (B-SSURGOB)*100)%>%
-  arrange(abs(A_diff))%>%
+# save and modify streamstats soil df:
+
+temp<-df.sf.NWIS%>%
+  select(Name, starts_with('SSURGO'))%>%
+  mutate(across(where(is.numeric), ~./100))%>%
+  left_join(., df.NWIS.TP_site_metadata, by = c('Name'='site_no'))%>%
+  mutate(across(starts_with('SSURGO'), ~.*drain_area_va))%>%
+  select(-drain_area_va)
+
+df.compare.G2tosoils<-left_join(temp,df.soils.sqmi, by = 'Name')%>%
+  mutate(A_err = ((A-SSURGOA)/SSURGOA)*100, B_err = ((B-SSURGOB)/SSURGOB)*100, .after = drain_area_va)%>%
+  arrange(abs(A_err))%>%
   ungroup()
+
+x<-temp%>%filter(Name%in%df.compare.G2tosoils$Name[1:10])
+  
+mapview(x)
+
+df.HSG$Watershed_Percent<-df.HSG$Watershed_Percent*0.00386102
+
+#
 
 # look at map of sites with over 10% A_diff:
 

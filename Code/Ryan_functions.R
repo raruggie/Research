@@ -353,7 +353,7 @@ fun.SURRGO_HSG<-function(site_no, sf.df){
   
   # look at map:
   
-  mapview(l.soils[[1]])+mapview(template)
+  # mapview(l.soils[[1]])+mapview(template)
   
   # will need to clip but can do that later...
   
@@ -367,9 +367,16 @@ fun.SURRGO_HSG<-function(site_no, sf.df){
   
   # lets filter the MU that are NA and replot:
   
-  df.sf.soils%>%
-    # drop_na(hydgrpdcd)%>%
-    mapview(., zcol = 'hydgrpdcd')+mapview(template)
+  # df.sf.soils%>%
+  #   # drop_na(hydgrpdcd)%>%
+  #   mapview(., zcol = 'hydgrpdcd')+mapview(template)
+  
+  # map of HSG A and the rest:
+  
+  # df.sf.soils%>%
+  #   # drop_na(hydgrpdcd)%>%
+  #   mutate('hydgrpdcd'=ifelse(hydgrpdcd=='A', 'A', 'Else'))%>%
+  #   mapview(., zcol = 'hydgrpdcd')
   
   # it looks like the NAs are water!!
   
@@ -395,21 +402,14 @@ fun.SURRGO_HSG<-function(site_no, sf.df){
   
   vect.soils$area_ha<-expanse(x= vect.soils, unit = 'ha')
   
-  # determine the watershed area that is HSG NA (assuming it is the water):
-  
-  site_open_water.ha<-sum(vect.soils$area_ha[is.na(vect.soils$hydgrpdcd)])
-  
-  # subtract open water area from total watershed area:
-  
-  site_land.ha<-site_DA.ha-site_open_water.ha
-  
   # make a dataframe of the areas and HSG, and calcualte the percent of each HSG:
   
   df.HSG<-data.frame(Area = vect.soils$area_ha, HSG = vect.soils$hydgrpdcd)%>%
     drop_na(HSG)%>%
     group_by(HSG)%>%
-    summarize(Watershed_Percent = round(sum(Area)/site_land.ha, 4))
+    summarize(Watershed_Percent = round(sum(Area)/site_DA.ha, 4))
   
+  return(df.HSG)
 }
 
 # same function as above but for use when sites soil map has already been downloaded:
@@ -445,9 +445,16 @@ fun.SURRGO_HSG.already_downloaded<-function(site_no, sf.df){
   
   # lets filter the MU that are NA and replot:
   
-  df.sf.soils%>%
-    # drop_na(hydgrpdcd)%>%
-    mapview(., zcol = 'hydgrpdcd')+mapview(template)
+  # df.sf.soils%>%
+  #   # drop_na(hydgrpdcd)%>%
+  #   mapview(., zcol = 'hydgrpdcd')+mapview(template)
+  
+  # map of HSG A and the rest:
+  
+  # df.sf.soils%>%
+  #   # drop_na(hydgrpdcd)%>%
+  #   mutate('hydgrpdcd'=ifelse(hydgrpdcd=='A', 'A', 'Else'))%>%
+  #   mapview(., zcol = 'hydgrpdcd')
   
   # it looks like the NAs are water!!
   
@@ -467,26 +474,18 @@ fun.SURRGO_HSG.already_downloaded<-function(site_no, sf.df){
   
   # look at map:
   
-  plot(x= vect.soils, y='hydgrpdcd')
+  # plot(x= vect.soils, y='hydgrpdcd')
   
   # add column of each polygons area:
   
   vect.soils$area_ha<-expanse(x= vect.soils, unit = 'ha')
-  
-  # determine the watershed area that is HSG NA (assuming it is the water):
-  
-  site_open_water.ha<-sum(vect.soils$area_ha[is.na(vect.soils$hydgrpdcd)])
-  
-  # subtract open water area from total watershed area:
-  
-  site_land.ha<-site_DA.ha-site_open_water.ha
   
   # make a dataframe of the areas and HSG, and calcualte the percent of each HSG:
   
   df.HSG<-data.frame(Area = vect.soils$area_ha, HSG = vect.soils$hydgrpdcd)%>%
     drop_na(HSG)%>%
     group_by(HSG)%>%
-    summarize(Watershed_Percent = round(sum(Area)/site_land.ha, 4))
+    summarize(Watershed_Percent = round(sum(Area)/site_DA.ha, 4))
   
   return(df.HSG)
 }
