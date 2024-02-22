@@ -332,8 +332,9 @@ add_columns <- function(df, columns){
 # *use this function in lapply for multiple sites:
 # if function doesnt work (maybe throws error that says file not found), try emptying Users/ryrug/AppData/Local/Temp folder
 # 
+
 # site_no<-df.sf.NWIS$Name[1]
-# # # 
+# # #
 # sf.df<-df.sf.NWIS
 
 fun.SURRGO_HSG<-function(site_no, sf.df){
@@ -362,7 +363,7 @@ fun.SURRGO_HSG<-function(site_no, sf.df){
   
   save(df.sf.soils, file = paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
   
-  # load('Processed_Data/df.sf.soils.Rdata')
+  # load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
   
   # lets filter the MU that are NA and replot:
   
@@ -374,7 +375,7 @@ fun.SURRGO_HSG<-function(site_no, sf.df){
   
   # convert to SpatVector to perform spatial analysis:
   
-  vect.soils<-vect(df.sf.soils%>%drop_na(hydgrpdcd))
+  vect.soils<-vect(df.sf.soils) # %>%drop_na(hydgrpdcd))
   
   vect.DA.template<-vect(template)
   
@@ -394,13 +395,100 @@ fun.SURRGO_HSG<-function(site_no, sf.df){
   
   vect.soils$area_ha<-expanse(x= vect.soils, unit = 'ha')
   
+  # determine the watershed area that is HSG NA (assuming it is the water):
+  
+  site_open_water.ha<-sum(vect.soils$area_ha[is.na(vect.soils$hydgrpdcd)])
+  
+  # subtract open water area from total watershed area:
+  
+  site_land.ha<-site_DA.ha-site_open_water.ha
+  
   # make a dataframe of the areas and HSG, and calcualte the percent of each HSG:
   
   df.HSG<-data.frame(Area = vect.soils$area_ha, HSG = vect.soils$hydgrpdcd)%>%
     drop_na(HSG)%>%
     group_by(HSG)%>%
-    summarize(Watershed_Percent = round(sum(Area)/site_DA.ha, 4))
+    summarize(Watershed_Percent = round(sum(Area)/site_land.ha, 4))
   
+}
+
+# same function as above but for use when sites soil map has already been downloaded:
+
+fun.SURRGO_HSG.already_downloaded<-function(site_no, sf.df){
+  
+  print(site_no)
+  print(which(sf.df$Name==site_no))
+  
+  # workflow for one site:
+  
+  # set function variables:
+  
+  template<-sf.df$geometry[sf.df$Name==site_no]
+  
+  # download soil data for site:
+  
+  # l.soils<-FedData::get_ssurgo(template = template, label = site_no) 
+  
+  # look at map:
+  
+  # mapview(l.soils[[1]])+mapview(template)
+  
+  # will need to clip but can do that later...
+  
+  # the mukey in the spatial element can be used as a joining column for the HSG, which is located in l.soils$tabular$muaggatt:
+  
+  # df.sf.soils<-left_join(l.soils[[1]], l.soils$tabular$muaggatt%>%select(mukey, hydgrpdcd)%>%mutate(MUKEY = as.character(mukey), .keep = 'unused'), by = 'MUKEY')
+  
+  # save(df.sf.soils, file = paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
+  
+  load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
+  
+  # lets filter the MU that are NA and replot:
+  
+  df.sf.soils%>%
+    # drop_na(hydgrpdcd)%>%
+    mapview(., zcol = 'hydgrpdcd')+mapview(template)
+  
+  # it looks like the NAs are water!!
+  
+  # convert to SpatVector to perform spatial analysis:
+  
+  vect.soils<-vect(df.sf.soils) # %>%drop_na(hydgrpdcd))
+  
+  vect.DA.template<-vect(template)
+  
+  # calcualte watershed area in unit ha:
+  
+  site_DA.ha<-round(expanse(vect.DA.template, unit="ha", transform=TRUE), 2)
+  
+  # crop soils vector to draiange area vector:
+  
+  vect.soils<-terra::crop(vect.soils, vect.DA.template)
+  
+  # look at map:
+  
+  plot(x= vect.soils, y='hydgrpdcd')
+  
+  # add column of each polygons area:
+  
+  vect.soils$area_ha<-expanse(x= vect.soils, unit = 'ha')
+  
+  # determine the watershed area that is HSG NA (assuming it is the water):
+  
+  site_open_water.ha<-sum(vect.soils$area_ha[is.na(vect.soils$hydgrpdcd)])
+  
+  # subtract open water area from total watershed area:
+  
+  site_land.ha<-site_DA.ha-site_open_water.ha
+  
+  # make a dataframe of the areas and HSG, and calcualte the percent of each HSG:
+  
+  df.HSG<-data.frame(Area = vect.soils$area_ha, HSG = vect.soils$hydgrpdcd)%>%
+    drop_na(HSG)%>%
+    group_by(HSG)%>%
+    summarize(Watershed_Percent = round(sum(Area)/site_land.ha, 4))
+  
+  return(df.HSG)
 }
 
 
@@ -615,7 +703,7 @@ fun.FRAGUN_BASIN<-function(i, landscape){
 
 i<-1
 
-WA<-df.sf.NWIS[i,]
+# WA<-df.sf.NWIS[i,]
 
 fun.CSA_watershed_percent<-function(i, WA){
   

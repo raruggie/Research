@@ -699,6 +699,10 @@ df.compare.G2toCDL%>%
   geom_tile()+
   scale_fill_gradient2(low = "red", high = "yellow")
 
+# finally save a DF of CDL variables to keep:
+
+df.CDL<-df.NWIS.CDL.2008%>%select(keep)
+
 #
 
 
@@ -860,6 +864,10 @@ load('Processed_Data/l.soils.4.Rdata')
 # l.soils.40tox<-lapply(df.sf.NWIS$Name[40:42], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
 # save(l.soils.40tox, file='Processed_Data/l.soils.5.Rdata')
 load('Processed_Data/l.soils.5.Rdata')
+
+# troubleshoot for when soils are already downloaded:
+
+l.soils<-lapply(df.sf.NWIS$Name, \(i) fun.SURRGO_HSG.already_downloaded(i, df.sf.NWIS))
 
 # combine into single list:
 
@@ -1109,11 +1117,77 @@ mapview(temp, zcol='Diff')
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+#### Watershed Percent CSA  ####
+
+# use function in lappy to calcualte watershed percent CSA:
+
+# l.CSA<-sapply(seq_along(df.sf.NWIS$Name), \(i) fun.CSA_watershed_percent(i, df.sf.NWIS[i,]))
+
+# names(l.CSA)<-df.sf.NWIS$Name
+
+# convert to dataframe:
+
+# df.CSA<-tibble::enframe(l.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
+
+# look at map colored by %CSA:
+
+# temp<-left_join(df.sf.NWIS, df.CSA, by = 'Name')%>%filter(is.na(value))
+
+# mapview(temp, zcol = 'value')
+
+# there are three sites in the catskills (small) with NA for percent CSA (proably all forest land)
+# so just replace NA with zero:
+
+# df.CSA<-df.CSA%>%replace(is.na(.), 0)
+
+# save:
+
+# save(df.CSA, file = 'Processed_Data/df.CSA.Rdata')
+
+# load in df.cSA
+load('Processed_Data/df.CSA.Rdata')
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ####~~~~Finalize DataLayers ~~~~####
 
 # the follwoing dataframes contain predictors for the sites:
 
-df.NWIS.NLCD.2016 # land use NLCD
+(df.NWIS.NLCD.2016<-df.NWIS.NLCD.2016%>%select(-R_NA)) # land use NLCD
 
 df.NWIS.CDL.2008 # land use CDL (crop specific)
 
@@ -1123,11 +1197,15 @@ df.soils #soils
 
 df.RIP # riparian buffer percent land use
 
-df.FB # FRAGUN BASIN
+(df.FB<-df.FB%>%rename(Name = 1)) # FRAGUN BASIN
 
+df.CSA # watershed percent CSA area
 
+# combine into single df:
 
+df.list<-list(df.NWIS.NLCD.2016, df.NWIS.CDL.2008, df.NWIS.DEM, df.soils, df.RIP, df.FB,df.CSA)
 
+df.datalayers<-join_all(, by='Flag', type='left')
 
 
 
@@ -1149,15 +1227,7 @@ df.FB # FRAGUN BASIN
  
 
 
-#### CSA map ####
 
-# use function in lappy to calcualte watershed percent CSA:
-
-l.CSA<-lapply(seq_along(df.sf.NWIS$Name), \(i) fun.CSA_watershed_percent(i, df.sf.NWIS[i,]))
-
-
-
-#
 
 
 
