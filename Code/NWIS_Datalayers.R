@@ -867,7 +867,7 @@ load('Processed_Data/l.soils.5.Rdata')
 
 # troubleshoot for when soils are already downloaded:
 
-l.soils<-lapply(df.sf.NWIS$Name, \(i) fun.SURRGO_HSG.already_downloaded(i, df.sf.NWIS))
+# l.soils<-lapply(df.sf.NWIS$Name, \(i) fun.SURRGO_HSG.already_downloaded(i, df.sf.NWIS))
 
 # combine into single list:
 
@@ -926,33 +926,27 @@ df.soils.sqmi<-df.soils%>%
 
 temp<-df.sf.NWIS%>%
   select(Name, starts_with('SSURGO'))%>%
-  mutate(across(where(is.numeric), ~./100))%>%
-  left_join(., df.NWIS.TP_site_metadata, by = c('Name'='site_no'))%>%
-  mutate(across(starts_with('SSURGO'), ~.*drain_area_va))%>%
-  select(-drain_area_va)
+  mutate(across(where(is.numeric), ~./100)) #%>%
+#   left_join(., df.NWIS.TP_site_metadata, by = c('Name'='site_no'))%>%
+#   mutate(across(starts_with('SSURGO'), ~.*drain_area_va))%>%
+#   select(-drain_area_va)
 
-df.compare.G2tosoils<-left_join(temp,df.soils.sqmi, by = 'Name')%>%
-  mutate(A_err = ((A-SSURGOA)/SSURGOA)*100, B_err = ((B-SSURGOB)/SSURGOB)*100, .after = drain_area_va)%>%
+df.compare.G2tosoils<-left_join(temp,df.soils, by = 'Name')%>%
+  mutate(A_err = ((A-SSURGOA)/SSURGOA)*100, B_err = ((B-SSURGOB)/SSURGOB)*100, .after = Name)%>%
   arrange(abs(A_err))%>%
   ungroup()
 
-x<-temp%>%filter(Name%in%df.compare.G2tosoils$Name[1:10])
+x<-df.compare.G2tosoils[1:10,]
   
-mapview(x)
+# mapview(x)
 
-df.HSG$Watershed_Percent<-df.HSG$Watershed_Percent*0.00386102
+y<-df.compare.G2tosoils[21:28,]
 
-#
-
-# look at map of sites with over 10% A_diff:
-
-temp<-df.compare.G2tosoils%>%filter(A_diff>10)
-
-mapview(temp$geometry)
+# mapview(y)
 
 # look at map of sites with low HSG coverage:
 
-left_join(df.sf.NWIS, df.soils, by = 'Name')%>%filter(HSG.coverage<.85)%>%mapview(., zcol = 'HSG.coverage')
+# left_join(df.sf.NWIS, df.soils, by = 'Name')%>%filter(HSG.coverage<.85)%>%mapview(., zcol = 'HSG.coverage')
 
 # can see that it is not the ADK sites butratherthe catskill sites (and some urban sites in CNY) that have low HSG coverage
 # I think this means that it is not poor ssurgo coverage, since there are map units for the entire watersehed (I am not showing that here but it is true) rather there is not HSG (NA) for those units
@@ -1129,7 +1123,7 @@ df.compare.G2toLPM<-left_join(df.FB, df.G2.reduced%>%select(STAID, FRAGUN_BASIN)
 
 temp<-df.compare.G2toLPM%>%left_join(df.sf.NWIS,., by=c('Name'='STAID'))
 
-mapview(temp, zcol='Diff')
+# mapview(temp, zcol='Diff')
 
 #
 
@@ -1220,7 +1214,7 @@ load('Processed_Data/df.CSA.Rdata')
 
 (df.NWIS.NLCD.2016<-df.NWIS.NLCD.2016%>%select(-R_NA)) # land use NLCD
 
-df.NWIS.CDL.2008 # land use CDL (crop specific)
+df.CDL # land use CDL (crop specific)
 
 df.NWIS.DEM # elevation
 
@@ -1234,11 +1228,15 @@ df.CSA # watershed percent CSA area
 
 # combine into single df:
 
-df.list<-list(df.NWIS.NLCD.2016, df.NWIS.CDL.2008, df.NWIS.DEM, df.soils, df.RIP, df.FB,df.CSA)
+df.list<-list(df.NWIS.NLCD.2016, df.CDL, df.NWIS.DEM, df.soils, df.RIP, df.FB, df.CSA)
 
-df.datalayers<-join_all(, by='Flag', type='left')
+df.datalayers<-plyr::join_all(df.list, by='Name', type='left')
 
+# save:
 
+save(df.datalayers, file = 'Processed_Data/df.datalayers.Rdata')
+
+#
 
 
 
