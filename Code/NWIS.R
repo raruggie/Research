@@ -389,6 +389,10 @@ unique(temp3$site_no)
 
 # 68 sites
 
+# save this df for export (to be used now that I can recreate G2 predictors using datalayers):
+
+df.TP_CQ.68<-temp3
+
 # the last filter is gauges 2:
 
 # read in all sheets using function
@@ -420,7 +424,7 @@ unique(temp4$site_no)
 # 42 sites
 
 # save this as the df to move onto future analysis:
-# need to alsoremove samples after 2001:
+# need to also remove samples after 2001: (I actually dont think I need to do this but keeping it anyways...)
 
 df.TP_CQ<-temp4%>%filter(sample_dt >= as.Date('2001-01-10'))
 
@@ -465,9 +469,9 @@ x<-temp2%>%filter(site_no%in% df.G2$STAID)
 
 # save(df.TP_CQ,file = 'Processed_Data/TP.Rdata')
 
+# save(df.TP_CQ.68, file = 'Processed_Data/TP.68.Rdata')
 
-
-
+#
 
 
 
