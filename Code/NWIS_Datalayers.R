@@ -1218,13 +1218,13 @@ df.CDL # land use CDL (crop specific)
 
 df.NWIS.DEM # elevation
 
-df.soils #soils
+(df.soils<-df.soils%>%rename(HSG_A=A, HSG_B=B, HSG_C=C, HSG_D=D)) #soils
 
 df.RIP # riparian buffer percent land use
 
 (df.FB<-df.FB%>%rename(Name = 1)) # FRAGUN BASIN
 
-df.CSA # watershed percent CSA area
+(df.CSA<-rename(df.CSA, CSA_perc=value)) # watershed percent CSA area
 
 # combine into single df:
 
@@ -1271,21 +1271,6 @@ save(df.datalayers, file = 'Processed_Data/df.datalayers.Rdata')
 
 
 
-
-
-
-
-
-
-
-
-# map for SpatVector with basemap!!:
-
-library(maptiles)
-bg <- get_tiles(ext(vect.flowline.buffer.100))
-
-plotRGB(bg)
-lines(vect.flowline.buffer.100, col="blue", lwd=3)
 
 
 

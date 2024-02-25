@@ -1047,8 +1047,109 @@ df.OLS_Sens%>%
 #
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Categorizing land use  ####
+
+# note* this section should come after regular old correlations such that df.OLS_Sens has the G2 predictors:
+
+# USGS criteria:
+# Agricultural sites have >50% agricultural land and ≤5% urban land;
+# urban sites have >25% urban and ≤25% agricultural land;
+# undeveloped sites have ≤ 5% urban and ≤ 25% agricultural land;
+# all other combinations of urban, agricultural, and undeveloped lands are classified as mixed
+
+# initate a dataframe with the landuse values from gauges 2:
+
+df.NLCD06<-distinct(df.OLS_Sens, Name, .keep_all = T)
+
+# I confirmed that pasture + crops = plant:
+
+(df.NLCD06$PASTURENLCD06+df.NLCD06$CROPSNLCD06)==df.NLCD06$PLANTNLCD06
+
+# and that the ones that start with DEV sum up to the first DEV one.
+
+# create the land use class column based on USGS critiera:
+# adjusted thresholds:
+
+df.NLCD06<-df.NLCD06%>%
+  mutate(USGS.LU.Adjusted = case_when(.default = 'Mixed',
+                                      PLANTNLCD06 > 30 & DEVNLCD06 <= 10 ~ 'Agriculture',
+                                      DEVNLCD06 > 10 & PLANTNLCD06 <= 30 ~ 'Urban',
+                                      DEVNLCD06+PLANTNLCD06 <= 10 ~ 'Undeveloped'))
+
+# frequency table:
+
+table(df.NLCD06$USGS.LU.Adjusted)
+
+# boxplots of
+
+p<-df.NLCD06%>%
+  pivot_longer(cols = 2:5, names_to = 'CQ_parameter', values_to = 'Value')%>%
+  ggplot(., aes(x=USGS.LU.Adjusted, y=Value, color =USGS.LU.Adjusted ))+
+  geom_boxplot(varwidth = TRUE, alpha=0.2)+
+  # scale_x_discrete(labels=my_xlab)+
+  facet_wrap('CQ_parameter', scales = 'free')+
+  stat_compare_means(method = "anova")+      # Add global p-value # , label.y = max(df.datalayers$Value) ???
+  stat_compare_means(label = "p.signif", method = "t.test",
+                     ref.group = "0.5") +
+  ggtitle('Adjusted USGS Thresholds using Aggregated Data Layers')
+
+# p
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-#### Correlations with top50 ####
+#### Correlations with 'top50' ####
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 # determine the median flow rate for each sites CQ observations: to do this:
@@ -1165,55 +1266,181 @@ df.OLS_Sens.top50%>%
 
 
 
-#### Categorizing land use ####
 
-# USGS criteria:
-# Agricultural sites have >50% agricultural land and ≤5% urban land;
-# urban sites have >25% urban and ≤25% agricultural land; 
-# undeveloped sites have ≤ 5% urban and ≤ 25% agricultural land; 
-# all other combinations of urban, agricultural, and undeveloped lands are classified as mixed
 
-# initate a dataframe with the landuse values from gauges 2:
 
-df.NLCD06<-distinct(df.OLS_Sens, Name, .keep_all = T)
 
-# I confirmed that pasture + crops = plant:
 
-(df.NLCD06$PASTURENLCD06+df.NLCD06$CROPSNLCD06)==df.NLCD06$PLANTNLCD06
 
-# and that the ones that start with DEV sum up to the first DEV one.
 
-# create the land use class column based on USGS critiera:
-# adjusted thresholds:
 
-df.NLCD06<-df.NLCD06%>%
-  mutate(USGS.LU.Adjusted = case_when(.default = 'Mixed',
-                                      PLANTNLCD06 > 30 & DEVNLCD06 <= 10 ~ 'Agriculture',
-                                      DEVNLCD06 > 10 & PLANTNLCD06 <= 30 ~ 'Urban',
-                                      DEVNLCD06+PLANTNLCD06 <= 10 ~ 'Undeveloped'))
 
-# frequency table:
 
-table(df.NLCD06$USGS.LU.Adjusted)
 
-# boxplots of
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#### Correlations with datalayers ####
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-p<-df.NLCD06%>%
-  pivot_longer(cols = 2:5, names_to = 'CQ_parameter', values_to = 'Value')%>%
-  ggplot(., aes(x=USGS.LU.Adjusted, y=Value, color =USGS.LU.Adjusted ))+
-  geom_boxplot(varwidth = TRUE, alpha=0.2)+
-  # scale_x_discrete(labels=my_xlab)+
-  facet_wrap('CQ_parameter', scales = 'free')+
-  stat_compare_means(method = "anova")+      # Add global p-value # , label.y = max(df.datalayers$Value) ???
-  stat_compare_means(label = "p.signif", method = "t.test",
-                     ref.group = "0.5") +
-  ggtitle('Adjusted USGS Thresholds using Aggregated Data Layers')
+# read in datalayers predictors:
 
-# p
+load('Processed_Data/df.datalayers.Rdata')
+
+# as per a first run of this workflow, remove emergentwetlands, soybeans, winter wheat, grassland
+
+df.datalayers<-df.datalayers%>%
+  select(-c(R_EMERGWETNLCD06, R_GRASSNLCD06, Soybeans, Winter_Wheat))%>%
+  replace(is.na(.), 0)
+
+# combined the reduced predictors df with the already filtered CQ data:
+
+df.Correlation<-df.TP_CQ%>%
+  rename(Name = site_no)%>%
+  select(Name, sample_dt,result_va, X_00060_00003)%>%mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
+  filter(is.finite(log_C))%>%
+  filter(is.finite(log_Q))%>%
+  left_join(., df.datalayers, by = 'Name')
+
+# create a dataframe with OLS and sens slope intercept and slopes:
+
+df.OLS<-df.Correlation%>%
+  group_by(Name)%>%
+  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+  summarize(., OLS.I = OLS.co[1], 
+            OLS.S = OLS.co[2])
+  }) %>%
+  ungroup
+
+df.Sens<-df.Correlation%>%
+  group_by(Name)%>%
+  do({ Sens.co<-zyp.sen(log_C~log_Q,.)
+  summarize(., Sen.I = Sens.co$coefficients[[1]],
+            Sen.S= Sens.co$coefficients[[2]])
+  }) %>%
+  ungroup
+
+# merge OLS and Sens:
+
+df.OLS_Sens<-left_join(df.OLS, df.Sens, by = 'Name')
+
+# merge constiuent yield:
+
+df.OLS_Sens<-left_join(df.OLS_Sens, df.Yield, by = 'Name')
+
+# merge back the watershed characteristic data to this dataframe:
+
+df.OLS_Sens<-left_join(df.OLS_Sens, df.datalayers, by = 'Name')
+
+# now run correlations between intercepts and slopes and watershed characteristics. to do this: (I orginally did this workflow using n_months (C:\PhD\Research\Mohawk\Code\Mohawk_Regression-analyizing_predictor_df.R)
+
+# set up variable for number of sites:
+
+n_sites<-dim(df.OLS_Sens)[1] 
+
+# use the corrr package to correlate() and focus() on your variable of choice.
+
+df.cor <- df.OLS_Sens %>% 
+  correlate(method = 'spearman') %>%
+  focus(c(OLS.I, OLS.S, Sen.I, Sen.S, Yield))%>%
+  pivot_longer(cols= c(2:6), names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
+  mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
+  mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
+  drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
+
+# then plot results: to do this:
+
+# create a list of each CQ parameter (4: OLS and Sens slope and intercept)and format it for ggplotting:
+
+l.cor<-df.cor %>%
+  split(., df.cor$CQ_Parameter)%>%
+  lapply(., \(i) i%>% 
+           arrange(Spearman_Correlation)%>%  
+           slice_head(n = 7)%>%
+           bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
+           mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
+           mutate(term = factor(term, levels = unique(term[order(Spearman_Correlation)])))%>%
+           filter(!between(Spearman_Correlation, -0.25,.25))) # Order by correlation strength
+
+# make plot list using lapply:
+
+plist<-lapply(l.cor, \(i) i%>%ggplot(aes(x = term, y = Spearman_Correlation, color = sig_0.05)) +
+                geom_bar(stat = "identity") +
+                scale_color_manual(values = c("not" = "red", "sig" = "blue"),na.value = NA, drop = FALSE)+
+                facet_wrap('CQ_Parameter')+
+                ylab(paste('Spearman Correlation')) +
+                xlab("Watershed Attribute")+
+                theme(axis.text.x=element_text(angle=40,hjust=1))+
+                theme(legend.position="bottom"))
+
+# arrange plots:
+
+p1<-ggpubr::ggarrange(plotlist = plist, ncol=3, nrow=2, common.legend = TRUE, legend="bottom")
+
+# add title:
+
+p1<-annotate_figure(p1, top = text_grob(paste(ncode, "Correlated Against Gauges 2"),
+                                        color = "red", face = "bold", size = 14))
+# plot:
+
+p1
+
+# save(p1, file = 'Processed_Data/p1.Rdata')
+
+# univariate plots of the top correlates/small land use types:
+
+# Lets do plots of OLS intercept: to do this:
+
+# determine the top correlates (the numberof the list determined which CQ parameter)
+# here 1 = OLS intercept:
+
+OLS<-l.cor[[5]]%>%arrange(desc(Spearman_Correlation))
+
+# make univariate plots (facets) of Y (determined in [[]]) above and predictors: 
+# note the predictor column isturned into an ordered factor based on thespearman correlation values
+# to makethe facet plots in order:
+
+df.OLS_Sens%>%
+  select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
+  pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
+  drop_na(Value)%>%
+  # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
+  left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
+  mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
+  ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
+  geom_smooth(method = 'lm')+
+  geom_point()+
+  facet_wrap('Type', scales = 'free')+
+  ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
+
+# create a function to use lapply to plot all 4 univariate sets:
+
+# number<-5
+
+# make_plot<-function(number){
+#   
+#   OLS<-l.cor[[number]]%>%arrange(desc(Spearman_Correlation))
+#   
+#   x<-df.OLS_Sens%>%
+#     select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
+#     pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
+#     drop_na(Value)%>%
+#     # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
+#     left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
+#     mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
+#     ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
+#     geom_smooth(method = 'lm')+
+#     geom_point()+
+#     facet_wrap('Type', scales = 'free')+
+#     ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
+#   
+#   x
+#   
+# }
+
+# use function in lapply (clear plot list first):
+
+# lapply(c(1:5), \(i) make_plot(i))
 
 #
-
-
 
 
 
@@ -1295,17 +1522,17 @@ df.TP_CQ<-left_join(df.TP_CQ,df.lm%>%select(site_no, Type),by=c('Name'='site_no'
 df_Seg.2<-filter(df_Seg, site %in% df.lm$site_no)%>%
   left_join(.,df.lm%>%select(site_no, Type),by=c('site'='site_no'))
 
-# make plot:
-
-p<-ggplot(df_Seg.2, aes(x = log(Q_real), y = log(C)))+
-  geom_point(aes(color = Type))+
-  geom_smooth(method = 'lm')+
-  geom_line(aes(x = Q, y = Seg_C), color = 'purple', size = 2)+
-  facet_wrap('n_sample_rank', scales = 'free')+
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_blank()
-  )
+# # make plot:
+# 
+# p<-ggplot(df_Seg.2, aes(x = log(Q_real), y = log(C)))+
+#   geom_point(aes(color = Type))+
+#   geom_smooth(method = 'lm')+
+#   geom_line(aes(x = Q, y = Seg_C), color = 'purple', size = 2)+
+#   facet_wrap('n_sample_rank', scales = 'free')+
+#   theme(
+#     strip.background = element_blank(),
+#     strip.text.x = element_blank()
+#   )
 
 # p
 
@@ -1511,6 +1738,31 @@ p
 
 #
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### Triangle plot with top 50 ####
 
 df.tri<-left_join(df.lm.top50, df.NLCD06%>%select(Name, DEVNLCD06, PLANTNLCD06), by = c('site_no'='Name'))%>%select(site_no, Slope, Type_top50, DEVNLCD06, PLANTNLCD06)%>%mutate(Slope = round(Slope, 2), DEVNLCD06=round(DEVNLCD06, 2), PLANTNLCD06=round(PLANTNLCD06, 2))
@@ -1562,6 +1814,9 @@ p
 
 
 #### MLR ####
+
+# note that this will run with the based on the last run correlations section
+# thus, it will run withdf.datalayers:
 
 # create a list of dfs, one for each cQ parameter, with the values of the spearman correlations for each predictor:
 
@@ -1776,12 +2031,33 @@ tab_model(m.list, dv.labels = names(m.list), title = paste('Comparison of MLR mo
 
 
 
+#### MLR - Cherry picking input features ####
+
+# the MLR forward selection wasnt returing any signficant 
+# predictors 
+
+# lets see what a single variable models looks like:
+
+y<-l.cor.MLR.full[[5]] # Yield
+
+y.round<-round(y, 2)
+
+a<-y$term
+b<-y$CSA_perc
+
+m.CSA_perc<-lm(a~b)
+
+summary(m.CSA_perc)
+
+plot(b,a)
+abline(m.CSA_perc)
+
+cor(b,a, method = 's')
 
 
+# I think that the forward selection is right, these single variabe models suck too
 
-
-
-
+#
 
 
 
