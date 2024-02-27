@@ -762,7 +762,7 @@ df.NWIS.NLCD.2016<-bind_rows(l.NWIS.NLCD.2016)
 # # Soybeans, Corn, Alfalfa, Spring_Wheat, Other_Hay/Non_Alfalfa, Grassland/Pasture, Dbl_Crop_WinWht/Soybeans, Winter_Wheat
 # # *note*: ALL_OTHER_LAND is non-crop land, so excluding
 # 
-# keep<-c('Name', 'Corn', 'Soybeans', 'Spring_Wheat', 'Winter_Wheat', 'Dbl_Crop_WinWht/Soybeans', 'Alfalfa', 'Other_Hay/Non_Alfalfa', 'Grassland/Pasture')
+keep<-c('Name', 'Corn', 'Soybeans', 'Spring_Wheat', 'Winter_Wheat', 'Dbl_Crop_WinWht/Soybeans', 'Alfalfa', 'Other_Hay/Non_Alfalfa', 'Grassland/Pasture')
 # 
 # # now extract just these from the CDL datalayers df:
 # 
@@ -797,9 +797,16 @@ df.NWIS.NLCD.2016<-bind_rows(l.NWIS.NLCD.2016)
 #   geom_tile()+
 #   scale_fill_gradient2(low = "red", high = "yellow")
 # 
-# # finally save a DF of CDL variables to keep:
-# 
+# finally save a DF of CDL variables to keep:
+
+# first pass:
+
 # df.CDL<-df.NWIS.CDL.2008%>%select(keep)
+
+# second pass:
+
+df.CDL<-df.NWIS.CDL.2008[,names(df.NWIS.CDL.2008)[(names(df.NWIS.CDL.2008) %in% keep)]]
+
 # 
 # #
 
@@ -846,7 +853,7 @@ df.NWIS.NLCD.2016<-bind_rows(l.NWIS.NLCD.2016)
 
 # second pass:
 
-# DEM.NWIS<-rast('Downloaded_Data/DEM.NWIS.next20.tif')
+DEM.NWIS<-rast('Downloaded_Data/DEM.NWIS.next20.tif')
 
 # plot(DEM.NWIS)
 
@@ -954,134 +961,136 @@ load('Processed_Data/df.NWIS.DEM.next20.Rdata')
 
 #### Soils: SURRGO (first pass) ####
 
-# full workflow:
+# start comment out
 
-# created function to download and get watershed percent of HSG:
-# the funciton takes a single site from a sf.df, so use it in lapply for all sites:
-
-# get SURRGO for these sites:
-
-# the connection kept timing out so I did this in batches:
-
-# the first running it got to the 6th site:
-
-# l.soils.1to6<-lapply(df.sf.NWIS$Name[1:6], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.1to6, file='Processed_Data/l.soils.1.Rdata')
-load('Processed_Data/l.soils.1.Rdata')
-
-# the second running it got to 20th site:
-
-# l.soils.7to20<-lapply(df.sf.NWIS$Name[7:20], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.7to20, file='Processed_Data/l.soils.2.Rdata')
-load('Processed_Data/l.soils.2.Rdata')
-
-# third:
-
-# l.soils.21<-lapply(df.sf.NWIS$Name[21], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.21, file='Processed_Data/l.soils.3.Rdata')
-load('Processed_Data/l.soils.3.Rdata')
-
-# fourth:
-
-# l.soils.22to39<-lapply(df.sf.NWIS$Name[22:39], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.22to39, file='Processed_Data/l.soils.4.Rdata')
-load('Processed_Data/l.soils.4.Rdata')
-
-# fifth:
-
-# l.soils.40tox<-lapply(df.sf.NWIS$Name[40:42], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.40tox, file='Processed_Data/l.soils.5.Rdata')
-load('Processed_Data/l.soils.5.Rdata')
-
-# troubleshoot for when soils are already downloaded:
-
-# l.soils<-lapply(df.sf.NWIS$Name, \(i) fun.SURRGO_HSG.already_downloaded(i, df.sf.NWIS))
-
-# combine into single list:
-
-l.soils<-c(l.soils.1to6, l.soils.7to20, l.soils.21, l.soils.22to39, l.soils.40tox)
-
-names(l.soils)<-df.sf.NWIS$Name
-
-# look at how much of the watershed is represented:
-
-sapply(l.soils, \(i) sum(i$Watershed_Percent))
-
-# combine into single dataframe:
-# *note that when you bind_rows the order of the stations is similar to sort() which is different than the order in the list. e.g. try running: df.sf.NWIS$Name==sort(df.sf.NWIS$Name)
-
-df.soils<-bind_rows(l.soils, .id = 'Name')
-
-# replace X/D HSG with just D:
-
-df.soils$HSG<-gsub(".*/.*", "D", df.soils$HSG)
-
-# group by and summarize HSG D for all sites:
-
-df.soils<-df.soils%>%group_by(Name, HSG)%>%summarise(Watershed_Percent = sum(Watershed_Percent))
-
-# pivot wider:
-
-df.soils<-df.soils%>%pivot_wider(names_from = HSG, values_from = Watershed_Percent)
-
-# set na to zero:
-
-df.soils[is.na(df.soils)]<-0
-
-# create column of HSG coverage:
-
-df.soils$HSG.coverage<-rowSums(df.soils[, sapply(df.soils, is.numeric)])
-
-# multiple by watershed area to get sqmis of %HSG: to do this:
-
-# read in site metadata (with drainage area in sqmi):
-
-df.NWIS.TP_site_metadata<-read.csv("Raw_Data/df.NWIS.TP_site_metadata.csv", colClasses = c(site_no = "character"))%>%
-  filter(site_no %in% df.sf.NWIS$Name)%>%
-  select(site_no, drain_area_va)
-  
-# merge with df.soils and multpliy HSG columns by area:
-
-df.soils.sqmi<-df.soils%>%
-  left_join(., df.NWIS.TP_site_metadata, by = c('Name'='site_no'))%>%
-  mutate(across(c(A,B,C,D), ~.*drain_area_va))
-
-# QA with streamstats: to do this:
-
-# merge df.soils with SSURGO columns from df.sf.NWIS: to do this:
-
-# save and modify streamstats soil df:
-
-temp<-df.sf.NWIS%>%
-  select(Name, starts_with('SSURGO'))%>%
-  mutate(across(where(is.numeric), ~./100)) #%>%
+# # full workflow:
+# 
+# # created function to download and get watershed percent of HSG:
+# # the funciton takes a single site from a sf.df, so use it in lapply for all sites:
+# 
+# # get SURRGO for these sites:
+# 
+# # the connection kept timing out so I did this in batches:
+# 
+# # the first running it got to the 6th site:
+# 
+# # l.soils.1to6<-lapply(df.sf.NWIS$Name[1:6], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# # save(l.soils.1to6, file='Processed_Data/l.soils.1.Rdata')
+# load('Processed_Data/l.soils.1.Rdata')
+# 
+# # the second running it got to 20th site:
+# 
+# # l.soils.7to20<-lapply(df.sf.NWIS$Name[7:20], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# # save(l.soils.7to20, file='Processed_Data/l.soils.2.Rdata')
+# load('Processed_Data/l.soils.2.Rdata')
+# 
+# # third:
+# 
+# # l.soils.21<-lapply(df.sf.NWIS$Name[21], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# # save(l.soils.21, file='Processed_Data/l.soils.3.Rdata')
+# load('Processed_Data/l.soils.3.Rdata')
+# 
+# # fourth:
+# 
+# # l.soils.22to39<-lapply(df.sf.NWIS$Name[22:39], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# # save(l.soils.22to39, file='Processed_Data/l.soils.4.Rdata')
+# load('Processed_Data/l.soils.4.Rdata')
+# 
+# # fifth:
+# 
+# # l.soils.40tox<-lapply(df.sf.NWIS$Name[40:42], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# # save(l.soils.40tox, file='Processed_Data/l.soils.5.Rdata')
+# load('Processed_Data/l.soils.5.Rdata')
+# 
+# # troubleshoot for when soils are already downloaded:
+# 
+# # l.soils<-lapply(df.sf.NWIS$Name, \(i) fun.SURRGO_HSG.already_downloaded(i, df.sf.NWIS))
+# 
+# # combine into single list:
+# 
+# l.soils<-c(l.soils.1to6, l.soils.7to20, l.soils.21, l.soils.22to39, l.soils.40tox)
+# 
+# names(l.soils)<-df.sf.NWIS$Name
+# 
+# # look at how much of the watershed is represented:
+# 
+# sapply(l.soils, \(i) sum(i$Watershed_Percent))
+# 
+# # combine into single dataframe:
+# # *note that when you bind_rows the order of the stations is similar to sort() which is different than the order in the list. e.g. try running: df.sf.NWIS$Name==sort(df.sf.NWIS$Name)
+# 
+# df.soils<-bind_rows(l.soils, .id = 'Name')
+# 
+# # replace X/D HSG with just D:
+# 
+# df.soils$HSG<-gsub(".*/.*", "D", df.soils$HSG)
+# 
+# # group by and summarize HSG D for all sites:
+# 
+# df.soils<-df.soils%>%group_by(Name, HSG)%>%summarise(Watershed_Percent = sum(Watershed_Percent))
+# 
+# # pivot wider:
+# 
+# df.soils<-df.soils%>%pivot_wider(names_from = HSG, values_from = Watershed_Percent)
+# 
+# # set na to zero:
+# 
+# df.soils[is.na(df.soils)]<-0
+# 
+# # create column of HSG coverage:
+# 
+# df.soils$HSG.coverage<-rowSums(df.soils[, sapply(df.soils, is.numeric)])
+# 
+# # multiple by watershed area to get sqmis of %HSG: to do this:
+# 
+# # read in site metadata (with drainage area in sqmi):
+# 
+# df.NWIS.TP_site_metadata<-read.csv("Raw_Data/df.NWIS.TP_site_metadata.csv", colClasses = c(site_no = "character"))%>%
+#   filter(site_no %in% df.sf.NWIS$Name)%>%
+#   select(site_no, drain_area_va)
+#   
+# # merge with df.soils and multpliy HSG columns by area:
+# 
+# df.soils.sqmi<-df.soils%>%
 #   left_join(., df.NWIS.TP_site_metadata, by = c('Name'='site_no'))%>%
-#   mutate(across(starts_with('SSURGO'), ~.*drain_area_va))%>%
-#   select(-drain_area_va)
+#   mutate(across(c(A,B,C,D), ~.*drain_area_va))
+# 
+# # QA with streamstats: to do this:
+# 
+# # merge df.soils with SSURGO columns from df.sf.NWIS: to do this:
+# 
+# # save and modify streamstats soil df:
+# 
+# temp<-df.sf.NWIS%>%
+#   select(Name, starts_with('SSURGO'))%>%
+#   mutate(across(where(is.numeric), ~./100)) #%>%
+# #   left_join(., df.NWIS.TP_site_metadata, by = c('Name'='site_no'))%>%
+# #   mutate(across(starts_with('SSURGO'), ~.*drain_area_va))%>%
+# #   select(-drain_area_va)
+# 
+# df.compare.G2tosoils<-left_join(temp,df.soils, by = 'Name')%>%
+#   mutate(A_err = ((A-SSURGOA)/SSURGOA)*100, B_err = ((B-SSURGOB)/SSURGOB)*100, .after = Name)%>%
+#   arrange(abs(A_err))%>%
+#   ungroup()
+# 
+# x<-df.compare.G2tosoils[1:10,]
+#   
+# # mapview(x)
+# 
+# y<-df.compare.G2tosoils[21:28,]
+# 
+# # mapview(y)
+# 
+# # look at map of sites with low HSG coverage:
+# 
+# # left_join(df.sf.NWIS, df.soils, by = 'Name')%>%filter(HSG.coverage<.85)%>%mapview(., zcol = 'HSG.coverage')
+# 
+# # can see that it is not the ADK sites butratherthe catskill sites (and some urban sites in CNY) that have low HSG coverage
+# # I think this means that it is not poor ssurgo coverage, since there are map units for the entire watersehed (I am not showing that here but it is true) rather there is not HSG (NA) for those units
+# 
+# #
 
-df.compare.G2tosoils<-left_join(temp,df.soils, by = 'Name')%>%
-  mutate(A_err = ((A-SSURGOA)/SSURGOA)*100, B_err = ((B-SSURGOB)/SSURGOB)*100, .after = Name)%>%
-  arrange(abs(A_err))%>%
-  ungroup()
-
-x<-df.compare.G2tosoils[1:10,]
-  
-# mapview(x)
-
-y<-df.compare.G2tosoils[21:28,]
-
-# mapview(y)
-
-# look at map of sites with low HSG coverage:
-
-# left_join(df.sf.NWIS, df.soils, by = 'Name')%>%filter(HSG.coverage<.85)%>%mapview(., zcol = 'HSG.coverage')
-
-# can see that it is not the ADK sites butratherthe catskill sites (and some urban sites in CNY) that have low HSG coverage
-# I think this means that it is not poor ssurgo coverage, since there are map units for the entire watersehed (I am not showing that here but it is true) rather there is not HSG (NA) for those units
-
-#
-
-
+# end comment out
 
 
 
@@ -1112,30 +1121,26 @@ y<-df.compare.G2tosoils[21:28,]
 
 # 1st running:
 
-l.soils.1to8<-lapply(df.sf.NWIS$Name[1:8], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-save(l.soils.1to8, file='Processed_Data/l.soils.1.next20.Rdata')
+# l.soils.1to8<-lapply(df.sf.NWIS$Name[1:8], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.1to8, file='Processed_Data/l.soils.1.next20.Rdata')
 load('Processed_Data/l.soils.1.next20.Rdata')
 
 # 2nd:
 
-l.soils.9to12<-lapply(df.sf.NWIS$Name[9:12], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-save(l.soils.9to12, file='Processed_Data/l.soils.2.next20.Rdata')
-load('Processed_Data/l.soils.2.Rdata')
+# l.soils.9to12<-lapply(df.sf.NWIS$Name[9:12], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.9to12, file='Processed_Data/l.soils.2.next20.Rdata')
+load('Processed_Data/l.soils.2.next20.Rdata')
 
 # 3rd:
 # **Note** site "04219768" give "ERROR : There are no complete soil surveys in your study area."
 
-l.soils.13to20<-lapply(df.sf.NWIS$Name[13:20], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-save(l.soils.13tox, file='Processed_Data/l.soils.3.next20.Rdata')
-load('Processed_Data/l.soils.2.Rdata')
-
-# troubleshoot for when soils are already downloaded:
-
-# l.soils<-lapply(df.sf.NWIS$Name, \(i) fun.SURRGO_HSG.already_downloaded(i, df.sf.NWIS))
+# l.soils.13to20<-lapply(df.sf.NWIS$Name[13:20], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.13to20, file='Processed_Data/l.soils.3.next20.Rdata')
+load('Processed_Data/l.soils.3.next20.Rdata')
 
 # combine into single list:
 
-l.soils<-c(l.soils.1to6, l.soils.7to20, l.soils.21, l.soils.22to39, l.soils.40tox)
+l.soils<-c(l.soils.1to8, l.soils.9to12, l.soils.13to20)
 
 names(l.soils)<-df.sf.NWIS$Name
 
@@ -1294,35 +1299,52 @@ library(sf)
 
 # df.RIP<-bind_rows(l.RIP)%>%mutate(Name = df.sf.NWIS$Name)
 
-# save df:
+# save:
+
+# first pass:
 
 # save(df.RIP, file='Processed_Data/df.NHD.RIP.buffer.100.800.pland.Rdata')
 
-load('Processed_Data/df.NHD.RIP.buffer.100.800.pland.Rdata')
+# second pass:
 
-# QA with gauges 2: these should line up with the RIP variables:
-  
-df.compare.G2toNHD<-df.G2.reduced%>%
-  select(STAID, contains('RIP'))%>%
-  mutate(across(where(is.numeric), ~./100))%>%
-  mutate(across(where(is.numeric), round, 3))%>%
-  left_join(., df.RIP, by = c('STAID'='Name'))%>%
-  pivot_longer(cols = -STAID)%>%
-  mutate(name = sub('*R_', '', name))%>%
-  group_by(STAID, name) %>%
-  summarise(diff = diff(value)) %>%
-  pivot_wider(names_from = name, values_from = diff) %>%
-  rename_at(-1, ~paste0(., "_diff"))
+# save(df.RIP, file='Processed_Data/df.NHD.RIP.buffer.100.800.pland.next20.Rdata')
 
-df.compare.G2toNHD%>%
-  pivot_longer(cols = -STAID)%>%
-  ggplot(., aes(x = STAID, y = name, fill = value)) +
-  geom_tile()+
-  scale_fill_gradient2(low = "red", high = "yellow")
-  
-# wow, they check out pretty good!
+# load:
 
-#
+# first pass:
+
+# load('Processed_Data/df.NHD.RIP.buffer.100.800.pland.Rdata')
+
+# second pass:
+
+load('Processed_Data/df.NHD.RIP.buffer.100.800.pland.next20.Rdata')
+
+# **Note** only run for first pass
+
+# 
+# # QA with gauges 2: these should line up with the RIP variables:
+#   
+# df.compare.G2toNHD<-df.G2.reduced%>%
+#   select(STAID, contains('RIP'))%>%
+#   mutate(across(where(is.numeric), ~./100))%>%
+#   mutate(across(where(is.numeric), round, 3))%>%
+#   left_join(., df.RIP, by = c('STAID'='Name'))%>%
+#   pivot_longer(cols = -STAID)%>%
+#   mutate(name = sub('*R_', '', name))%>%
+#   group_by(STAID, name) %>%
+#   summarise(diff = diff(value)) %>%
+#   pivot_wider(names_from = name, values_from = diff) %>%
+#   rename_at(-1, ~paste0(., "_diff"))
+# 
+# df.compare.G2toNHD%>%
+#   pivot_longer(cols = -STAID)%>%
+#   ggplot(., aes(x = STAID, y = name, fill = value)) +
+#   geom_tile()+
+#   scale_fill_gradient2(low = "red", high = "yellow")
+#   
+# # wow, they check out pretty good!
+# 
+# #
 
 
 
@@ -1365,6 +1387,8 @@ library(landscapemetrics)
 
 # l.FB<-lapply(seq_along(l.rast.NWIS.NLCD.2001), \(i) fun.FRAGUN_BASIN(i, l.rast.NWIS.NLCD.2001[[i]]))
 
+# set list names:
+
 # names(l.FB)<-df.sf.NWIS$Name
 
 # create df:
@@ -1373,22 +1397,39 @@ library(landscapemetrics)
 
 # save:
 
+# first pass:
+
 # save(df.FB, file='Processed_Data/df.FRAGUN_BASIN.Rdata')
-load('Processed_Data/df.FRAGUN_BASIN.Rdata')
 
-# QA with G2:
+# second pass:
 
-df.compare.G2toLPM<-left_join(df.FB, df.G2.reduced%>%select(STAID, FRAGUN_BASIN), by = 'STAID')%>%
-  mutate(Diff = FRAGUN-FRAGUN_BASIN)%>%
-  arrange(abs(Diff))
+# save(df.FB, file='Processed_Data/df.FRAGUN_BASIN.next20.Rdata')
 
-# look at map:
+# load:
 
-temp<-df.compare.G2toLPM%>%left_join(df.sf.NWIS,., by=c('Name'='STAID'))
+# first pass:
 
-# mapview(temp, zcol='Diff')
+# load('Processed_Data/df.FRAGUN_BASIN.Rdata')
 
-#
+# second pass:
+
+load('Processed_Data/df.FRAGUN_BASIN.next20.Rdata')
+
+# **Note** only run for first pass:
+
+# # QA with G2:
+# 
+# df.compare.G2toLPM<-left_join(df.FB, df.G2.reduced%>%select(STAID, FRAGUN_BASIN), by = 'STAID')%>%
+#   mutate(Diff = FRAGUN-FRAGUN_BASIN)%>%
+#   arrange(abs(Diff))
+# 
+# # look at map:
+# 
+# temp<-df.compare.G2toLPM%>%left_join(df.sf.NWIS,., by=c('Name'='STAID'))
+# 
+# # mapview(temp, zcol='Diff')
+# 
+# #
 
 
 
@@ -1422,36 +1463,45 @@ temp<-df.compare.G2toLPM%>%left_join(df.sf.NWIS,., by=c('Name'='STAID'))
 
 # l.CSA<-sapply(seq_along(df.sf.NWIS$Name), \(i) fun.CSA_watershed_percent(i, df.sf.NWIS[i,]))
 
+# set names:
+
 # names(l.CSA)<-df.sf.NWIS$Name
 
 # convert to dataframe:
 
-# df.CSA<-tibble::enframe(l.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
+df.CSA<-tibble::enframe(l.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
 
 # look at map colored by %CSA:
 
 # temp<-left_join(df.sf.NWIS, df.CSA, by = 'Name')%>%filter(is.na(value))
-
 # mapview(temp, zcol = 'value')
 
 # there are three sites in the catskills (small) with NA for percent CSA (proably all forest land)
 # so just replace NA with zero:
+# **Note** only for second pass does site at entry 13 need to be NA for since there is no soils data
 
 # df.CSA<-df.CSA%>%replace(is.na(.), 0)
+# df.CSA$value[13]<-NA
 
 # save:
 
+# first pass:
+
 # save(df.CSA, file = 'Processed_Data/df.CSA.Rdata')
 
-# load in df.cSA
+# second pass:
 
-load('Processed_Data/df.CSA.Rdata')
+# save(df.CSA, file = 'Processed_Data/df.CSA.next20.Rdata')
 
+# load:
 
+# first pass:
 
-i<-'013621955'
-r<-rast(names.2016[which(df.sf.NWIS$Name==i)])
-sf<-df.sf.NWIS[which(df.sf.NWIS$Name==i),]
+# load('Processed_Data/df.CSA.Rdata')
+
+# second pass:
+
+load('Processed_Data/df.CSA.next20.Rdata')
 
 #
 
@@ -1488,6 +1538,8 @@ sf<-df.sf.NWIS[which(df.sf.NWIS$Name==i),]
 
 # v.Ag.CSA<-lapply(seq_along(df.sf.NWIS$Name), \(i) fun.Ag.CSA(i, df.sf.NWIS[i,]))
 
+# set names:
+
 # names(v.Ag.CSA)<-df.sf.NWIS$Name
 
 # convert to dataframe:
@@ -1497,12 +1549,13 @@ sf<-df.sf.NWIS[which(df.sf.NWIS$Name==i),]
 # look at map colored by %CSA:
 
 # temp<-left_join(df.sf.NWIS, df.Ag.CSA, by = 'Name')
-
 # mapview(temp, zcol = 'value')
 
 # there are 6 sites with NA:
+# **Note** only for second pass does site at entry 13 need to be NA for since there is no soils data
 
 # df.Ag.CSA<-df.Ag.CSA%>%replace(is.na(.), 0)
+# df.Ag.CSA$value[13]<-NA
 
 # check to make sure it is less that actual Ag land %:
 
@@ -1512,11 +1565,25 @@ sf<-df.sf.NWIS[which(df.sf.NWIS$Name==i),]
 
 # save:
 
+# first pass:
+
 # save(df.Ag.CSA, file = 'Processed_Data/df.Ag.CSA.Rdata')
+
+# second pass:
+
+# save(df.Ag.CSA, file = 'Processed_Data/df.Ag.CSA.next20.Rdata')
 
 # load:
 
-load('Processed_Data/df.Ag.CSA.Rdata')
+# first pass:
+
+# load('Processed_Data/df.Ag.CSA.Rdata')
+
+# second pass:
+
+load('Processed_Data/df.Ag.CSA.next20.Rdata')
+
+#
 
 
 
@@ -1536,7 +1603,67 @@ load('Processed_Data/df.Ag.CSA.Rdata')
 
 
 
-####~~~~Finalize DataLayers ~~~~####
+
+
+####~~~~Finalize DataLayers First Pass ~~~~####
+
+# # the follwoing dataframes contain predictors for the sites:
+# 
+# (df.NWIS.NLCD.2016<-df.NWIS.NLCD.2016%>%select(-R_NA)) # land use NLCD
+# 
+# df.CDL # land use CDL (crop specific)
+# 
+# df.NWIS.DEM # elevation
+# 
+# (df.soils<-df.soils%>%rename(HSG_A=A, HSG_B=B, HSG_C=C, HSG_D=D)) #soils
+# 
+# df.RIP # riparian buffer percent land use
+# 
+# (df.FB<-df.FB%>%rename(Name = 1)) # FRAGUN BASIN
+# 
+# (df.CSA<-rename(df.CSA, CSA_perc=value)) # watershed percent CSA area
+# 
+# (df.Ag.CSA<-rename(df.Ag.CSA, Ag.CSA_perc=value))
+# 
+# # combine into single df:
+# 
+# df.list<-list(df.NWIS.NLCD.2016, df.CDL, df.NWIS.DEM, df.soils, df.RIP, df.FB, df.CSA, df.Ag.CSA)
+# 
+# df.datalayers<-plyr::join_all(df.list, by='Name', type='left')
+# 
+# # save:
+# 
+# save(df.datalayers, file = 'Processed_Data/df.datalayers.Rdata')
+# 
+# #
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####~~~~Finalize DataLayers Second Pass ~~~~####
 
 # the follwoing dataframes contain predictors for the sites:
 
@@ -1547,6 +1674,8 @@ df.CDL # land use CDL (crop specific)
 df.NWIS.DEM # elevation
 
 (df.soils<-df.soils%>%rename(HSG_A=A, HSG_B=B, HSG_C=C, HSG_D=D)) #soils
+
+# *note8 second pass has 19 out of 20 because site 13 didnt have any soils data
 
 df.RIP # riparian buffer percent land use
 
@@ -1564,10 +1693,9 @@ df.datalayers<-plyr::join_all(df.list, by='Name', type='left')
 
 # save:
 
-save(df.datalayers, file = 'Processed_Data/df.datalayers.Rdata')
+save(df.datalayers, file = 'Processed_Data/df.datalayers.next20.Rdata')
 
 #
-
 
 
 

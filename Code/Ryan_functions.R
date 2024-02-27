@@ -710,7 +710,7 @@ fun.FRAGUN_BASIN<-function(i, landscape){
 
 # function to determine percent CSA in watershed:
 
-i<-20
+i<-5
 
 # WA<-df.sf.NWIS[i,]
 
@@ -718,123 +718,128 @@ fun.CSA_watershed_percent<-function(i, WA){
   
   print(i)
   
-  # mapview(WA)
+  tryCatch({
+    
+    # mapview(WA)
+    
+    # Step 1: create slope map.to do this:
+    
+    # convert watershed boundary to spatvector:
+    
+    vect.boundary<-vect(WA)
+    
+    # reproject to match DEM raster crs:
+    
+    vect.boundary<-project(vect.boundary, crs(DEM.NWIS))
+    
+    # crop NED:
+    
+    rast.NED<-crop(DEM.NWIS, vect.boundary, mask=T)
+    
+    # create slope map:
+    
+    rast.slope<-terrain(rast.NED, "slope")
+    
+    # bin slope into three categories:
+    
+    m<-c(0,5,1,5,10,2,10,100,3)
+    rclmat<-matrix(m, ncol = 3, byrow = T)
+    rast.slope<-classify(rast.slope,rclmat,include.lowest=T)
+    
+    # rename raster levels:
+    
+    rast.slope<-as.factor(rast.slope)
+    
+    levels(rast.slope)<-data.frame(ID=1:3,Slope=c('<5%','5-10%','>10%'))
+    
+    # Step 2: soils:
+    
+    # load in HSG map:
+    
+    load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', df.sf.NWIS$Name[i], '.Rdata'))
+    
+    # convert to spatvector:
+    
+    vect.soils<-vect(df.sf.soils%>%drop_na(hydgrpdcd))
+    
+    # replace X/D HSG with just D:
+    
+    vect.soils$hydgrpdcd<-gsub(".*/.*", "D", vect.soils$hydgrpdcd)
+    
+    # rasterize:
+    
+    rast.soils<-rasterize(vect.soils, rast.slope, field = 'hydgrpdcd')
+    
+    # classify levels to only 3 (will be used later for good, fair, and poor drainage):
+    
+    m<-c(0,1,1,2,2,3,3,3)
+    rclmat<-matrix(m, ncol = 2, byrow = T)
+    rast.soils<-classify(rast.soils,rclmat)
+    
+    # set levels to a name:
+    
+    rast.soils<-as.factor(rast.soils)
+    levels(rast.soils)<-data.frame(ID = 1:3, Drainage = c('Good', 'Fair', 'Poor'))
+    
+    # Step 3: Land use:
+    
+    # load landuse raster:
+    
+    rast.LU<-rast(names.2006[i]) # no need to crop for now...
+    
+    # set levels:
+    
+    levels(rast.LU)<-levels(rast.LU)[[1]]%>%drop_na(Class)%>%left_join(., legend%>%select(ID, Class4), by = 'ID')%>%select(-Class)%>%rename(Dev = Class4)
+    
+    # classify down to just two levels:
+    
+    m<-c(legend$ID, ifelse(legend$Class4=='dev', 1, 0))
+    rclmat<-matrix(m, ncol = 2, byrow = F)
+    rast.LU<-classify(rast.LU,rclmat)
+    rast.LU<-as.factor(rast.LU)
+    levels(rast.LU)<-data.frame(ID = 0:1, Dev = c('undev', 'dev'))
+    
+    # Step 4: combine into single map:
+    
+    # first check crs:
+    
+    # crs(rast.slope)
+    # crs(rast.soils)
+    # crs(rast.LU)
+    
+    # reproject rast.LU:
+    
+    rast.LU<-project(rast.LU, rast.soils)
+    
+    # now merge maps:
+    
+    CSA.map<-concats(rast.slope, rast.soils)
+    
+    CSA.map<-concats(CSA.map, rast.LU)
+    
+    # turn into binary CSA map:
+    
+    levels(CSA.map)<-data.frame(ID = 0:17, CSA = c(rep('non-CSA',5), 'CSA', rep('non-CSA', 3), 'CSA', 'non-CSA', 'CSA', 'non-CSA', 'CSA', 'non-CSA', 'CSA', 'non-CSA', 'CSA'))
+    m<-c(0:17,ifelse(levels(CSA.map)[[1]]$CSA=='CSA', 1,0))
+    rclmat<-matrix(m, ncol = 2, byrow = F)
+    CSA.map<-classify(CSA.map,rclmat)
+    CSA.map<-as.factor(CSA.map)
+    levels(CSA.map)<-data.frame(ID = 0:1, CSA = c('non-CSA', 'CSA'))
+    
+    # sum up CSA area for watershed:
+    
+    df.CSA<-freq(CSA.map)
+    
+    # determine percent watershed:
+    
+    df.CSA$perc <- round(100 * df.CSA$count / sum(df.CSA$count), 1)
+    
+    percent.CSA<-df.CSA$perc[df.CSA$value=='CSA']
+    
+    return(percent.CSA)
+    
+  },error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
   
-  # Step 1: create slope map.to do this:
-  
-  # convert watershed boundary to spatvector:
-  
-  vect.boundary<-vect(WA)
-  
-  # reproject to match DEM raster crs:
-  
-  vect.boundary<-project(vect.boundary, crs(DEM.NWIS))
-  
-  # crop NED:
-  
-  rast.NED<-crop(DEM.NWIS, vect.boundary, mask=T)
-  
-  # create slope map:
-  
-  rast.slope<-terrain(rast.NED, "slope")
-  
-  # bin slope into three categories:
-  
-  m<-c(0,5,1,5,10,2,10,100,3)
-  rclmat<-matrix(m, ncol = 3, byrow = T)
-  rast.slope<-classify(rast.slope,rclmat,include.lowest=T)
-  
-  # rename raster levels:
-  
-  rast.slope<-as.factor(rast.slope)
-  
-  levels(rast.slope)<-data.frame(ID=1:3,Slope=c('<5%','5-10%','>10%'))
-  
-  # Step 2: soils:
-  
-  # load in HSG map:
-  
-  load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', df.sf.NWIS$Name[i], '.Rdata'))
-  
-  # convert to spatvector:
-  
-  vect.soils<-vect(df.sf.soils%>%drop_na(hydgrpdcd))
-  
-  # replace X/D HSG with just D:
-  
-  vect.soils$hydgrpdcd<-gsub(".*/.*", "D", vect.soils$hydgrpdcd)
-  
-  # rasterize:
-  
-  rast.soils<-rasterize(vect.soils, rast.slope, field = 'hydgrpdcd')
-  
-  # classify levels to only 3 (will be used later for good, fair, and poor drainage):
-  
-  m<-c(0,1,1,2,2,3,3,3)
-  rclmat<-matrix(m, ncol = 2, byrow = T)
-  rast.soils<-classify(rast.soils,rclmat)
-  
-  # set levels to a name:
-  
-  rast.soils<-as.factor(rast.soils)
-  levels(rast.soils)<-data.frame(ID = 1:3, Drainage = c('Good', 'Fair', 'Poor'))
-  
-  # Step 3: Land use:
-  
-  # load landuse raster:
-  
-  rast.LU<-rast(names.2006[i]) # no need to crop for now...
-  
-  # set levels:
-  
-  levels(rast.LU)<-levels(rast.LU)[[1]]%>%drop_na(Class)%>%left_join(., legend%>%select(ID, Class4), by = 'ID')%>%select(-Class)%>%rename(Dev = Class4)
-  
-  # classify down to just two levels:
-  
-  m<-c(legend$ID, ifelse(legend$Class4=='dev', 1, 0))
-  rclmat<-matrix(m, ncol = 2, byrow = F)
-  rast.LU<-classify(rast.LU,rclmat)
-  rast.LU<-as.factor(rast.LU)
-  levels(rast.LU)<-data.frame(ID = 0:1, Dev = c('undev', 'dev'))
-  
-  # Step 4: combine into single map:
-  
-  # first check crs:
-  
-  # crs(rast.slope)
-  # crs(rast.soils)
-  # crs(rast.LU)
-  
-  # reproject rast.LU:
-  
-  rast.LU<-project(rast.LU, rast.soils)
-  
-  # now merge maps:
-  
-  CSA.map<-concats(rast.slope, rast.soils)
-  
-  CSA.map<-concats(CSA.map, rast.LU)
-  
-  # turn into binary CSA map:
-  
-  levels(CSA.map)<-data.frame(ID = 0:17, CSA = c(rep('non-CSA',5), 'CSA', rep('non-CSA', 3), 'CSA', 'non-CSA', 'CSA', 'non-CSA', 'CSA', 'non-CSA', 'CSA', 'non-CSA', 'CSA'))
-  m<-c(0:17,ifelse(levels(CSA.map)[[1]]$CSA=='CSA', 1,0))
-  rclmat<-matrix(m, ncol = 2, byrow = F)
-  CSA.map<-classify(CSA.map,rclmat)
-  CSA.map<-as.factor(CSA.map)
-  levels(CSA.map)<-data.frame(ID = 0:1, CSA = c('non-CSA', 'CSA'))
-  
-  # sum up CSA area for watershed:
-  
-  df.CSA<-freq(CSA.map)
-  
-  # determine percent watershed:
-  
-  df.CSA$perc <- round(100 * df.CSA$count / sum(df.CSA$count), 1)
-  
-  percent.CSA<-df.CSA$perc[df.CSA$value=='CSA']
-  
-  return(percent.CSA)
   
 }
 
@@ -849,92 +854,99 @@ fun.Ag.CSA<-function(i, WA){
   print(i)
   print(df.sf.NWIS$Name[i])
   
-  # workflow:
+  tryCatch({
+    
+    # workflow:
+    
+    # create categoical slope raster:
+    
+    vect.boundary<-vect(WA)
+    vect.boundary<-project(vect.boundary, crs(DEM.NWIS))
+    rast.NED<-crop(DEM.NWIS, vect.boundary, mask=T)
+    rast.slope<-terrain(rast.NED, "slope")
+    # plot(rast.slope)
+    
+    # create LU map and set levels to just non-Ag and Ag:
+    
+    rast.LU<-rast(names.2016[i])
+    vect.DA<-vect(WA)
+    vect.DA<-project(vect.DA, crs(rast.LU))
+    rast.LU<-crop(rast.LU, vect.DA, mask=TRUE)
+    rast.LU<-project(rast.LU, rast.slope)
+    levels(rast.LU)<-levels(rast.LU)[[1]]%>%drop_na(Class)%>%left_join(., legend%>%select(ID, Class5), by = 'ID')%>%select(-Class)%>%rename(Ag = Class5)
+    m<-c(legend$ID, ifelse(legend$Class5=='Ag', 1, 0)) 
+    rclmat<-matrix(m, ncol = 2, byrow = F)
+    rast.LU<-classify(rast.LU,rclmat)
+    rast.LU<-as.factor(rast.LU)
+    levels(rast.LU)<-data.frame(ID = 0:1, Ag = c('non-Ag', 'Ag'))
+    # plot(rast.LU)
+    
+    # create HSG raster and classify to two levels, good (0) and poor (1) soils:
+    
+    load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', df.sf.NWIS$Name[i], '.Rdata'))
+    vect.soils<-vect(df.sf.soils%>%drop_na(hydgrpdcd))
+    vect.soils$hydgrpdcd<-gsub(".*/.*", "D", vect.soils$hydgrpdcd)
+    rast.soils<-rasterize(vect.soils, rast.slope, field = 'hydgrpdcd')
+    m<-c(0,0,1,0,2,1,3,1)
+    rclmat<-matrix(m, ncol = 2, byrow = T)
+    rast.soils<-classify(rast.soils,rclmat)
+    rast.soils<-as.factor(rast.soils)
+    # plot(rast.soils)
+    
+    # test: Create a raster of just slope where there is land use Ag:
+    
+    Ag <- ifel(rast.LU == 'Ag', 1, NA)
+    # plot(Ag)
+    slope.Ag <- mask(rast.slope, Ag)
+    
+    # plot:
+    
+    # plot(slope.Ag)
+    # hist(slope.Ag)
+    # max(slope.Ag)
+    
+    # it looks like most of the Ag land is below 5%, but goes 
+    # as high as 24% (that could be bad data too...)
+    
+    # now calculate watershed percent Ag with over 5% slope + HSG C/D. to do this:
+    
+    # create steep slope, Ag, and poor draiange rasters but use 0 instead of NA in ifel:
+    
+    Ag<-as.factor(Ag <- ifel(rast.LU == 'Ag', 1, 0))
+    # plot(Ag)
+    Steep<-as.factor(ifel(rast.slope>5, 1,0))
+    # plot(Steep)
+    Soggy<-rast.soils
+    # plot(Soggy)
+    
+    # merge rasters:
+    
+    Steep.Wet.Ag<-concats(Steep, Soggy)
+    Steep.Wet.Ag<-concats(Steep.Wet.Ag, Ag)
+    
+    # plot:
+    
+    # plot(Steep.Wet.Ag)
+    # levels(Steep.Wet.Ag)
+    
+    # calculate frequency table (1_1_1 is Ag CSA:)
+    
+    CSA.Ag<-freq(Steep.Wet.Ag)
+    
+    # determine percent watershed:
+    
+    CSA.Ag$perc <- round(100 * CSA.Ag$count / sum(CSA.Ag$count), 10)
+    
+    # extract out Ag CSA:
+    
+    Ag.CSA<-round(CSA.Ag$perc[CSA.Ag$value=='1_1_1'], 3)
+    
+    return(Ag.CSA)
+    
+    
+  },error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
   
-  # create categoical slope raster:
   
-  vect.boundary<-vect(WA)
-  vect.boundary<-project(vect.boundary, crs(DEM.NWIS))
-  rast.NED<-crop(DEM.NWIS, vect.boundary, mask=T)
-  rast.slope<-terrain(rast.NED, "slope")
-  # plot(rast.slope)
-  
-  # create LU map and set levels to just non-Ag and Ag:
-  
-  rast.LU<-rast(names.2016[i])
-  vect.DA<-vect(WA)
-  vect.DA<-project(vect.DA, crs(rast.LU))
-  rast.LU<-crop(rast.LU, vect.DA, mask=TRUE)
-  rast.LU<-project(rast.LU, rast.slope)
-  levels(rast.LU)<-levels(rast.LU)[[1]]%>%drop_na(Class)%>%left_join(., legend%>%select(ID, Class5), by = 'ID')%>%select(-Class)%>%rename(Ag = Class5)
-  m<-c(legend$ID, ifelse(legend$Class5=='Ag', 1, 0)) 
-  rclmat<-matrix(m, ncol = 2, byrow = F)
-  rast.LU<-classify(rast.LU,rclmat)
-  rast.LU<-as.factor(rast.LU)
-  levels(rast.LU)<-data.frame(ID = 0:1, Ag = c('non-Ag', 'Ag'))
-  # plot(rast.LU)
-  
-  # create HSG raster and classify to two levels, good (0) and poor (1) soils:
-  
-  load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', df.sf.NWIS$Name[i], '.Rdata'))
-  vect.soils<-vect(df.sf.soils%>%drop_na(hydgrpdcd))
-  vect.soils$hydgrpdcd<-gsub(".*/.*", "D", vect.soils$hydgrpdcd)
-  rast.soils<-rasterize(vect.soils, rast.slope, field = 'hydgrpdcd')
-  m<-c(0,0,1,0,2,1,3,1)
-  rclmat<-matrix(m, ncol = 2, byrow = T)
-  rast.soils<-classify(rast.soils,rclmat)
-  rast.soils<-as.factor(rast.soils)
-  # plot(rast.soils)
-  
-  # test: Create a raster of just slope where there is land use Ag:
-  
-  Ag <- ifel(rast.LU == 'Ag', 1, NA)
-  # plot(Ag)
-  slope.Ag <- mask(rast.slope, Ag)
-  
-  # plot:
-  
-  # plot(slope.Ag)
-  # hist(slope.Ag)
-  # max(slope.Ag)
-  
-  # it looks like most of the Ag land is below 5%, but goes 
-  # as high as 24% (that could be bad data too...)
-  
-  # now calculate watershed percent Ag with over 5% slope + HSG C/D. to do this:
-  
-  # create steep slope, Ag, and poor draiange rasters but use 0 instead of NA in ifel:
-  
-  Ag<-as.factor(Ag <- ifel(rast.LU == 'Ag', 1, 0))
-  # plot(Ag)
-  Steep<-as.factor(ifel(rast.slope>5, 1,0))
-  # plot(Steep)
-  Soggy<-rast.soils
-  # plot(Soggy)
-  
-  # merge rasters:
-  
-  Steep.Wet.Ag<-concats(Steep, Soggy)
-  Steep.Wet.Ag<-concats(Steep.Wet.Ag, Ag)
-  
-  # plot:
-  
-  # plot(Steep.Wet.Ag)
-  # levels(Steep.Wet.Ag)
-  
-  # calculate frequency table (1_1_1 is Ag CSA:)
-  
-  CSA.Ag<-freq(Steep.Wet.Ag)
-  
-  # determine percent watershed:
-  
-  CSA.Ag$perc <- round(100 * CSA.Ag$count / sum(CSA.Ag$count), 10)
-  
-  # extract out Ag CSA:
-  
-  Ag.CSA<-round(CSA.Ag$perc[CSA.Ag$value=='1_1_1'], 3)
-  
-  return(Ag.CSA)
   
 }
 
