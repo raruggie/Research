@@ -1292,7 +1292,7 @@ load('Processed_Data/df.datalayers.Rdata')
 # as per a first run of this workflow, remove emergentwetlands, soybeans, winter wheat, grassland
 
 df.datalayers<-df.datalayers%>%
-  select(-c(R_EMERGWETNLCD06, R_GRASSNLCD06, Soybeans, Winter_Wheat))%>%
+  select(-c(R_EMERGWETNLCD06, R_GRASSNLCD06, Soybeans, Winter_Wheat, Ag.CSA_perc))%>%
   replace(is.na(.), 0)
 
 # combined the reduced predictors df with the already filtered CQ data:
