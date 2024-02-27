@@ -1181,13 +1181,71 @@ temp<-df.compare.G2toLPM%>%left_join(df.sf.NWIS,., by=c('Name'='STAID'))
 # save(df.CSA, file = 'Processed_Data/df.CSA.Rdata')
 
 # load in df.cSA
+
 load('Processed_Data/df.CSA.Rdata')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Watershed Percent Certain type of Land Use in CSA ####
+
+# in terms of the correlaitons analysis, percent ag and devloped in the 
+# ripiran buffer is highly correlated relative to just plain old
+# watershed percent Ag...
+
+# calculate the percent of agriculture, devloped, and CDL crop that intersect with 
+# steep soils and poor HSG
+
+v.Ag.CSA<-lapply(seq_along(df.sf.NWIS$Name), \(i) fun.Ag.CSA(i, df.sf.NWIS[i,]))
+
+names(v.Ag.CSA)<-df.sf.NWIS$Name
+
+# convert to dataframe:
+
+df.Ag.CSA<-tibble::enframe(v.Ag.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
+
+# look at map colored by %CSA:
+
+temp<-left_join(df.sf.NWIS, df.Ag.CSA, by = 'Name')
+
+mapview(temp, zcol = 'value')
+
+# there are 6 sites with NA:
+
+df.Ag.CSA<-df.Ag.CSA%>%replace(is.na(.), 0)
+
+# save:
+
+save(df.Ag.CSA, file = 'Processed_Data/df.Ag.CSA.Rdata')
 
 #
 
-
-
-
+# I would like to do watershed percent Ag in buffer with steep slopes and poor soils
 
 
 
@@ -1237,7 +1295,6 @@ df.datalayers<-plyr::join_all(df.list, by='Name', type='left')
 save(df.datalayers, file = 'Processed_Data/df.datalayers.Rdata')
 
 #
-
 
 
 
