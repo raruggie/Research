@@ -336,8 +336,8 @@ add_columns <- function(df, columns){
 # if function doesnt work (maybe throws error that says file not found), try emptying Users/ryrug/AppData/Local/Temp folder
 # 
 
-# site_no<-df.sf.NWIS$Name[1]
-# # #
+# i<-12
+# site_no<-df.sf.NWIS$Name[i]
 # sf.df<-df.sf.NWIS
 
 fun.SURRGO_HSG<-function(site_no, sf.df){
@@ -351,68 +351,75 @@ fun.SURRGO_HSG<-function(site_no, sf.df){
   template<-sf.df$geometry[sf.df$Name==site_no]
   
   # download soil data for site:
+  # you may get: 
+  # Error:There are no complete soil surveys in your study area.
+  # so using tryCatch here:
   
-  l.soils<-FedData::get_ssurgo(template = template, label = site_no) 
+  tryCatch({
+    
+    l.soils<-FedData::get_ssurgo(template = template, label = site_no)
+    # look at map:
+    
+    # mapview(l.soils[[1]])+mapview(template)
+    
+    # will need to clip but can do that later...
+    
+    # the mukey in the spatial element can be used as a joining column for the HSG, which is located in l.soils$tabular$muaggatt:
+    
+    df.sf.soils<-left_join(l.soils[[1]], l.soils$tabular$muaggatt%>%select(mukey, hydgrpdcd)%>%mutate(MUKEY = as.character(mukey), .keep = 'unused'), by = 'MUKEY')
+    
+    save(df.sf.soils, file = paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
+    
+    # load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
+    
+    # lets filter the MU that are NA and replot:
+    
+    # df.sf.soils%>%
+    #   # drop_na(hydgrpdcd)%>%
+    #   mapview(., zcol = 'hydgrpdcd')+mapview(template)
+    
+    # map of HSG A and the rest:
+    
+    # df.sf.soils%>%
+    #   # drop_na(hydgrpdcd)%>%
+    #   mutate('hydgrpdcd'=ifelse(hydgrpdcd=='A', 'A', 'Else'))%>%
+    #   mapview(., zcol = 'hydgrpdcd')
+    
+    # it looks like the NAs are water!!
+    
+    # convert to SpatVector to perform spatial analysis:
+    
+    vect.soils<-vect(df.sf.soils) # %>%drop_na(hydgrpdcd))
+    
+    vect.DA.template<-vect(template)
+    
+    # calcualte watershed area in unit ha:
+    
+    site_DA.ha<-round(expanse(vect.DA.template, unit="ha", transform=TRUE), 2)
+    
+    # crop soils vector to draiange area vector:
+    
+    vect.soils<-terra::crop(vect.soils, vect.DA.template)
+    
+    # look at map:
+    
+    plot(x= vect.soils, y='hydgrpdcd')
+    
+    # add column of each polygons area:
+    
+    vect.soils$area_ha<-expanse(x= vect.soils, unit = 'ha')
+    
+    # make a dataframe of the areas and HSG, and calcualte the percent of each HSG:
+    
+    df.HSG<-data.frame(Area = vect.soils$area_ha, HSG = vect.soils$hydgrpdcd)%>%
+      drop_na(HSG)%>%
+      group_by(HSG)%>%
+      summarize(Watershed_Percent = round(sum(Area)/site_DA.ha, 4))
+    
+    return(df.HSG)
+    
+  },error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
   
-  # look at map:
-  
-  # mapview(l.soils[[1]])+mapview(template)
-  
-  # will need to clip but can do that later...
-  
-  # the mukey in the spatial element can be used as a joining column for the HSG, which is located in l.soils$tabular$muaggatt:
-  
-  df.sf.soils<-left_join(l.soils[[1]], l.soils$tabular$muaggatt%>%select(mukey, hydgrpdcd)%>%mutate(MUKEY = as.character(mukey), .keep = 'unused'), by = 'MUKEY')
-  
-  save(df.sf.soils, file = paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
-  
-  # load(paste0('Processed_Data/SURRGO_dfs/df.sf.soils.', site_no, '.Rdata'))
-  
-  # lets filter the MU that are NA and replot:
-  
-  # df.sf.soils%>%
-  #   # drop_na(hydgrpdcd)%>%
-  #   mapview(., zcol = 'hydgrpdcd')+mapview(template)
-  
-  # map of HSG A and the rest:
-  
-  # df.sf.soils%>%
-  #   # drop_na(hydgrpdcd)%>%
-  #   mutate('hydgrpdcd'=ifelse(hydgrpdcd=='A', 'A', 'Else'))%>%
-  #   mapview(., zcol = 'hydgrpdcd')
-  
-  # it looks like the NAs are water!!
-  
-  # convert to SpatVector to perform spatial analysis:
-  
-  vect.soils<-vect(df.sf.soils) # %>%drop_na(hydgrpdcd))
-  
-  vect.DA.template<-vect(template)
-  
-  # calcualte watershed area in unit ha:
-  
-  site_DA.ha<-round(expanse(vect.DA.template, unit="ha", transform=TRUE), 2)
-  
-  # crop soils vector to draiange area vector:
-  
-  vect.soils<-terra::crop(vect.soils, vect.DA.template)
-  
-  # look at map:
-  
-  plot(x= vect.soils, y='hydgrpdcd')
-  
-  # add column of each polygons area:
-  
-  vect.soils$area_ha<-expanse(x= vect.soils, unit = 'ha')
-  
-  # make a dataframe of the areas and HSG, and calcualte the percent of each HSG:
-  
-  df.HSG<-data.frame(Area = vect.soils$area_ha, HSG = vect.soils$hydgrpdcd)%>%
-    drop_na(HSG)%>%
-    group_by(HSG)%>%
-    summarize(Watershed_Percent = round(sum(Area)/site_DA.ha, 4))
-  
-  return(df.HSG)
 }
 
 # same function as above but for use when sites soil map has already been downloaded:

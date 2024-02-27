@@ -1081,35 +1081,53 @@ y<-df.compare.G2tosoils[21:28,]
 
 #
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### Soils: SURRGO (second pass) ####
 
-l.soils<-lapply(df.sf.NWIS$Name, \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.1to6, file='Processed_Data/l.soils.1.Rdata')
-load('Processed_Data/l.soils.1.Rdata')
+# 1st running:
 
-# the second running it got to 20th site:
+l.soils.1to8<-lapply(df.sf.NWIS$Name[1:8], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+save(l.soils.1to8, file='Processed_Data/l.soils.1.next20.Rdata')
+load('Processed_Data/l.soils.1.next20.Rdata')
 
-# l.soils.7to20<-lapply(df.sf.NWIS$Name[7:20], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.7to20, file='Processed_Data/l.soils.2.Rdata')
+# 2nd:
+
+l.soils.9to12<-lapply(df.sf.NWIS$Name[9:12], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+save(l.soils.9to12, file='Processed_Data/l.soils.2.next20.Rdata')
 load('Processed_Data/l.soils.2.Rdata')
 
-# third:
+# 3rd:
+# **Note** site "04219768" give "ERROR : There are no complete soil surveys in your study area."
 
-# l.soils.21<-lapply(df.sf.NWIS$Name[21], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.21, file='Processed_Data/l.soils.3.Rdata')
-load('Processed_Data/l.soils.3.Rdata')
-
-# fourth:
-
-# l.soils.22to39<-lapply(df.sf.NWIS$Name[22:39], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.22to39, file='Processed_Data/l.soils.4.Rdata')
-load('Processed_Data/l.soils.4.Rdata')
-
-# fifth:
-
-# l.soils.40tox<-lapply(df.sf.NWIS$Name[40:42], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
-# save(l.soils.40tox, file='Processed_Data/l.soils.5.Rdata')
-load('Processed_Data/l.soils.5.Rdata')
+l.soils.13to20<-lapply(df.sf.NWIS$Name[13:20], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+save(l.soils.13tox, file='Processed_Data/l.soils.3.next20.Rdata')
+load('Processed_Data/l.soils.2.Rdata')
 
 # troubleshoot for when soils are already downloaded:
 
