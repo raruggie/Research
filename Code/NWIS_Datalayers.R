@@ -505,8 +505,8 @@ names.2016<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.s
 
 # extract frequency tables for each sample watershed
 
-# system.time({l.NWIS.NLCD.2006 <- lapply(seq_along(l.rast.NWIS.NLCD.2006), \(i) terra::extract(l.rast.NWIS.NLCD.2006[[i]], vect.NWIS.proj[i], ID=FALSE)%>%group_by_at(1)%>%summarize(Freq=round(n()/nrow(.),2)))})
-# system.time({l.NWIS.NLCD.2016 <- lapply(seq_along(l.rast.NWIS.NLCD.2016), \(i) terra::extract(l.rast.NWIS.NLCD.2016[[i]], vect.NWIS.proj[i], ID=FALSE)%>%group_by_at(1)%>%summarize(Freq=round(n()/nrow(.),2)))})
+# system.time({l.NWIS.NLCD.2006 <- lapply(seq_along(l.rast.NWIS.NLCD.2006), \(i) terra::extract(l.rast.NWIS.NLCD.2006[[i]], vect.NWIS.proj[i], ID=FALSE)%>%group_by_at(1)%>%summarize(Freq=round(n()/nrow(.),6)))})
+# system.time({l.NWIS.NLCD.2016 <- lapply(seq_along(l.rast.NWIS.NLCD.2016), \(i) terra::extract(l.rast.NWIS.NLCD.2016[[i]], vect.NWIS.proj[i], ID=FALSE)%>%group_by_at(1)%>%summarize(Freq=round(n()/nrow(.),6)))})
 
 # save(l.NWIS.NLCD.2006, file = 'Processed_Data/l.NWIS.NLCD.2006.Rdata')
 # save(l.NWIS.NLCD.2016, file = 'Processed_Data/l.NWIS.NLCD.2016.Rdata')
@@ -611,7 +611,7 @@ df.compare.G2to2016%>%
   geom_tile()+
   scale_fill_gradient2(low = "red", high = "yellow")
 
-
+#
 
 
 
@@ -1186,9 +1186,11 @@ load('Processed_Data/df.CSA.Rdata')
 
 
 
+i<-'013621955'
+r<-rast(names.2016[which(df.sf.NWIS$Name==i)])
+sf<-df.sf.NWIS[which(df.sf.NWIS$Name==i),]
 
-
-
+#
 
 
 
@@ -1221,32 +1223,37 @@ load('Processed_Data/df.CSA.Rdata')
 # calculate the percent of agriculture, devloped, and CDL crop that intersect with 
 # steep soils and poor HSG
 
-v.Ag.CSA<-lapply(seq_along(df.sf.NWIS$Name), \(i) fun.Ag.CSA(i, df.sf.NWIS[i,]))
+# v.Ag.CSA<-lapply(seq_along(df.sf.NWIS$Name), \(i) fun.Ag.CSA(i, df.sf.NWIS[i,]))
 
-names(v.Ag.CSA)<-df.sf.NWIS$Name
+# names(v.Ag.CSA)<-df.sf.NWIS$Name
 
 # convert to dataframe:
 
-df.Ag.CSA<-tibble::enframe(v.Ag.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
+# df.Ag.CSA<-tibble::enframe(v.Ag.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
 
 # look at map colored by %CSA:
 
-temp<-left_join(df.sf.NWIS, df.Ag.CSA, by = 'Name')
+# temp<-left_join(df.sf.NWIS, df.Ag.CSA, by = 'Name')
 
-mapview(temp, zcol = 'value')
+# mapview(temp, zcol = 'value')
 
 # there are 6 sites with NA:
 
-df.Ag.CSA<-df.Ag.CSA%>%replace(is.na(.), 0)
+# df.Ag.CSA<-df.Ag.CSA%>%replace(is.na(.), 0)
+
+# check to make sure it is less that actual Ag land %:
+
+# x<-left_join(df.NWIS.NLCD.2016%>%select(Name, contains('PLANT'))%>%mutate(R_PLANTNLCD06=R_PLANTNLCD06*100), df.Ag.CSA, by= 'Name')%>%mutate(Diff=R_PLANTNLCD06-value)%>%arrange(abs(Diff))
+
+# looks good!
 
 # save:
 
-save(df.Ag.CSA, file = 'Processed_Data/df.Ag.CSA.Rdata')
+# save(df.Ag.CSA, file = 'Processed_Data/df.Ag.CSA.Rdata')
 
-#
+# load:
 
-# I would like to do watershed percent Ag in buffer with steep slopes and poor soils
-
+load('Processed_Data/df.Ag.CSA.Rdata')
 
 
 
@@ -1284,9 +1291,11 @@ df.RIP # riparian buffer percent land use
 
 (df.CSA<-rename(df.CSA, CSA_perc=value)) # watershed percent CSA area
 
+(df.Ag.CSA<-rename(df.Ag.CSA, Ag.CSA_perc=value))
+
 # combine into single df:
 
-df.list<-list(df.NWIS.NLCD.2016, df.CDL, df.NWIS.DEM, df.soils, df.RIP, df.FB, df.CSA)
+df.list<-list(df.NWIS.NLCD.2016, df.CDL, df.NWIS.DEM, df.soils, df.RIP, df.FB, df.CSA, df.Ag.CSA)
 
 df.datalayers<-plyr::join_all(df.list, by='Name', type='left')
 
