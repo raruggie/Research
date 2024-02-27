@@ -61,9 +61,49 @@ source("Code/Ryan_functions.R")
 
 ####################### Workflow #######################
 
-# read in watershed shapsfiles (df.sf.NWIS):
+#### Read in Watershed SHapefiles ####
+
+# first pass:
+
+# for the orginal 42 sites:
 
 load('Processed_Data/NWIS_Watershed_Shapefiles.Rdata')
+
+# second pass:
+
+# for the next set of sites which is 62:
+
+load('Processed_Data/NWIS_Watershed_Shapefiles.62.Rdata')
+
+# filter to just the 20 not runon the first pass 
+# and rename to the df name use in this code, df.sf.NWIS:
+
+df.sf.NWIS<-df.sf.NWIS.62%>%filter(!Name %in% df.sf.NWIS$Name)
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #### CDL Comparisons: Early and Recent downloads and comparisons ~~~####
 
@@ -102,13 +142,27 @@ load('Processed_Data/NWIS_Watershed_Shapefiles.Rdata')
 
 # save:
 
+# first pass:
+
 # save(l.NWIS.CDL, file='Processed_Data/l.NWIS.CDL.Rdata')
 # save(l.NWIS.CDL.2008, file='Processed_Data/l.NWIS.CDL.2008.Rdata')
 
+# second pass:
+
+# save(l.NWIS.CDL, file='Processed_Data/l.NWIS.CDL.next20.Rdata')
+# save(l.NWIS.CDL.2008, file='Processed_Data/l.NWIS.CDL.2008.next20.Rdata')
+
 # read in CDL for 2022 and 2008 (recent and old):
 
-load('Processed_Data/l.NWIS.CDL.Rdata')
-load('Processed_Data/l.NWIS.CDL.2008.Rdata')
+# first pass:
+
+# load('Processed_Data/l.NWIS.CDL.Rdata')
+# load('Processed_Data/l.NWIS.CDL.2008.Rdata')
+
+# second pass:
+
+load('Processed_Data/l.NWIS.CDL.next20.Rdata')
+load('Processed_Data/l.NWIS.CDL.2008.next20.Rdata')
 
 # convert resulting list of tables to list of dfs
 
@@ -368,6 +422,8 @@ var_desc %>%
 
 #### Test of howclose I can get CDL to NLCD ####
 
+# **Note** only run for first pass...
+
 # **NOTE*
 # the CDL and NLCD differ in that the CDL combined Pasture and grassland while the nLCD does not
 # thus, even though the CDL can be agrgated to get close to the NLCD, I would need to do NLCD to get exactly like GAGES
@@ -475,17 +531,35 @@ temp%>%
 
 # save SpatRasters as tif files:
 
+# first pass:
+
 # lapply(seq_along(l.rast.NWIS.NLCD.2001), \(i) writeRaster(l.rast.NWIS.NLCD.2001[[i]], filename = paste0('Downloaded_Data/NLCD_rasters/NLCD_2001_SpatRaster_for', df.sf.NWIS$Name[i], '.tif'), overwrite=TRUE))
 # lapply(seq_along(l.rast.NWIS.NLCD.2006), \(i) writeRaster(l.rast.NWIS.NLCD.2006[[i]], filename = paste0('Downloaded_Data/NLCD_rasters/NLCD_2006_SpatRaster_for', df.sf.NWIS$Name[i], '.tif'), overwrite=TRUE))
 # lapply(seq_along(l.rast.NWIS.NLCD.2016), \(i) writeRaster(l.rast.NWIS.NLCD.2016[[i]], filename = paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.sf.NWIS$Name[i], '.tif'), overwrite=TRUE))
 
-# create vectors of raster names 
+# second pass:
 
-names.2001<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2001_SpatRaster_for', df.sf.NWIS$Name, '.tif')
-names.2006<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2006_SpatRaster_for', df.sf.NWIS$Name, '.tif')
-names.2016<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.sf.NWIS$Name, '.tif')
+# lapply(seq_along(l.rast.NWIS.NLCD.2001), \(i) writeRaster(l.rast.NWIS.NLCD.2001[[i]], filename = paste0('Downloaded_Data/NLCD_rasters/NLCD_2001_SpatRaster_for', df.sf.NWIS$Name[i], '.next20.tif'), overwrite=TRUE))
+# lapply(seq_along(l.rast.NWIS.NLCD.2006), \(i) writeRaster(l.rast.NWIS.NLCD.2006[[i]], filename = paste0('Downloaded_Data/NLCD_rasters/NLCD_2006_SpatRaster_for', df.sf.NWIS$Name[i], '.next20.tif'), overwrite=TRUE))
+# lapply(seq_along(l.rast.NWIS.NLCD.2016), \(i) writeRaster(l.rast.NWIS.NLCD.2016[[i]], filename = paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.sf.NWIS$Name[i], '.next20.tif'), overwrite=TRUE))
+
+# create vectors of raster names: 
+
+# first pass:
+
+# names.2001<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2001_SpatRaster_for', df.sf.NWIS$Name, '.tif')
+# names.2006<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2006_SpatRaster_for', df.sf.NWIS$Name, '.tif')
+# names.2016<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.sf.NWIS$Name, '.tif')
+
+# second pass:
+
+names.2001<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2001_SpatRaster_for', df.sf.NWIS$Name, '.next20.tif')
+names.2006<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2006_SpatRaster_for', df.sf.NWIS$Name, '.next20.tif')
+names.2016<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.sf.NWIS$Name, '.next20.tif')
 
 # load SpatRasters back in:
+
+# first and second pass:
 
 # l.rast.NWIS.NLCD.2006<-lapply(names.2006, rast)
 # l.rast.NWIS.NLCD.2016<-lapply(names.2016, rast)
@@ -508,11 +582,29 @@ names.2016<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.s
 # system.time({l.NWIS.NLCD.2006 <- lapply(seq_along(l.rast.NWIS.NLCD.2006), \(i) terra::extract(l.rast.NWIS.NLCD.2006[[i]], vect.NWIS.proj[i], ID=FALSE)%>%group_by_at(1)%>%summarize(Freq=round(n()/nrow(.),6)))})
 # system.time({l.NWIS.NLCD.2016 <- lapply(seq_along(l.rast.NWIS.NLCD.2016), \(i) terra::extract(l.rast.NWIS.NLCD.2016[[i]], vect.NWIS.proj[i], ID=FALSE)%>%group_by_at(1)%>%summarize(Freq=round(n()/nrow(.),6)))})
 
+# save:
+
+# first pass:
+
 # save(l.NWIS.NLCD.2006, file = 'Processed_Data/l.NWIS.NLCD.2006.Rdata')
 # save(l.NWIS.NLCD.2016, file = 'Processed_Data/l.NWIS.NLCD.2016.Rdata')
 
-load("Processed_Data/l.NWIS.NLCD.2006.Rdata")
-load("Processed_Data/l.NWIS.NLCD.2016.Rdata")
+# second pass:
+
+# save(l.NWIS.NLCD.2006, file = 'Processed_Data/l.NWIS.NLCD.2006.next20.Rdata')
+# save(l.NWIS.NLCD.2016, file = 'Processed_Data/l.NWIS.NLCD.2016.next20.Rdata')
+
+# load back in:
+
+# first pass:
+
+# load("Processed_Data/l.NWIS.NLCD.2006.Rdata")
+# load("Processed_Data/l.NWIS.NLCD.2016.Rdata")
+
+# second pass:
+
+load("Processed_Data/l.NWIS.NLCD.2006.next20.Rdata")
+load("Processed_Data/l.NWIS.NLCD.2016.next20.Rdata")
 
 # reclassify: the GAGES II predictors for NLCD land use are the sum of a few NLCD classes (see the kable table of the variable descriptions made above). To do this:
 
@@ -571,51 +663,49 @@ df.NWIS.NLCD.2016<-bind_rows(l.NWIS.NLCD.2016)
 
 # now compare to GAGES II:
 
-df.compare.G2to2006<-df.G2.reduced%>%select(STAID, names(df.G2.reduced)[c(8:11,18,19,21,22)])%>% # create a df of just the NLCD GAGES II predictors,
-  mutate(across(where(is.numeric), ~./100))%>%
-  mutate(across(where(is.numeric), round, 3))%>%
-  # mutate_all(~ ifelse(is.numeric(.), round(.*0.01, 2), .))%>%
-  left_join(., df.NWIS.NLCD.2006, by = c('STAID'='Name'))%>%
-  pivot_longer(cols = -STAID)%>%
-  mutate(name = sub('*R_', '', name))%>%
-  group_by(STAID, name) %>%
-  summarise(diff = diff(value)) %>%
-  pivot_wider(names_from = name, values_from = diff) %>%
-  rename_at(-1, ~paste0(., "_diff"))%>%
-  mutate(across(where(is.numeric), round, 3))
-
-df.compare.G2to2016<-df.G2.reduced%>%select(STAID, names(df.G2.reduced)[c(8:11,18,19,21,22)])%>% # create a df of just the NLCD GAGES II predictors,
-  mutate(across(where(is.numeric), ~./100))%>%
-  mutate(across(where(is.numeric), round, 3))%>%
-  # mutate_all(~ ifelse(is.numeric(.), round(.*0.01, 2), .))%>%
-  left_join(., df.NWIS.NLCD.2016, by = c('STAID'='Name'))%>%
-  pivot_longer(cols = -STAID)%>%
-  mutate(name = sub('*R_', '', name))%>%
-  group_by(STAID, name) %>%
-  summarise(diff = diff(value)) %>%
-  pivot_wider(names_from = name, values_from = diff) %>%
-  rename_at(-1, ~paste0(., "_diff"))%>%
-  mutate(across(where(is.numeric), round, 3))
-
-# plot as heatmap:
-
-df.compare.G2to2006%>%
-  pivot_longer(cols = -STAID)%>%
-  ggplot(., aes(x = STAID, y = name, fill = value)) +
-  geom_tile()+
-  scale_fill_gradient2(low = "red", high = "yellow")
-
-df.compare.G2to2016%>%
-  pivot_longer(cols = -STAID)%>%
-  ggplot(., aes(x = STAID, y = name, fill = value)) +
-  geom_tile()+
-  scale_fill_gradient2(low = "red", high = "yellow")
-
-#
-
-
-
-
+# # **Note** only run for first pass...
+# 
+# df.compare.G2to2006<-df.G2.reduced%>%select(STAID, names(df.G2.reduced)[c(8:11,18,19,21,22)])%>% # create a df of just the NLCD GAGES II predictors,
+#   mutate(across(where(is.numeric), ~./100))%>%
+#   mutate(across(where(is.numeric), round, 3))%>%
+#   # mutate_all(~ ifelse(is.numeric(.), round(.*0.01, 2), .))%>%
+#   left_join(., df.NWIS.NLCD.2006, by = c('STAID'='Name'))%>%
+#   pivot_longer(cols = -STAID)%>%
+#   mutate(name = sub('*R_', '', name))%>%
+#   group_by(STAID, name) %>%
+#   summarise(diff = diff(value)) %>%
+#   pivot_wider(names_from = name, values_from = diff) %>%
+#   rename_at(-1, ~paste0(., "_diff"))%>%
+#   mutate(across(where(is.numeric), round, 3))
+# 
+# df.compare.G2to2016<-df.G2.reduced%>%select(STAID, names(df.G2.reduced)[c(8:11,18,19,21,22)])%>% # create a df of just the NLCD GAGES II predictors,
+#   mutate(across(where(is.numeric), ~./100))%>%
+#   mutate(across(where(is.numeric), round, 3))%>%
+#   # mutate_all(~ ifelse(is.numeric(.), round(.*0.01, 2), .))%>%
+#   left_join(., df.NWIS.NLCD.2016, by = c('STAID'='Name'))%>%
+#   pivot_longer(cols = -STAID)%>%
+#   mutate(name = sub('*R_', '', name))%>%
+#   group_by(STAID, name) %>%
+#   summarise(diff = diff(value)) %>%
+#   pivot_wider(names_from = name, values_from = diff) %>%
+#   rename_at(-1, ~paste0(., "_diff"))%>%
+#   mutate(across(where(is.numeric), round, 3))
+# 
+# # plot as heatmap:
+# 
+# df.compare.G2to2006%>%
+#   pivot_longer(cols = -STAID)%>%
+#   ggplot(., aes(x = STAID, y = name, fill = value)) +
+#   geom_tile()+
+#   scale_fill_gradient2(low = "red", high = "yellow")
+# 
+# df.compare.G2to2016%>%
+#   pivot_longer(cols = -STAID)%>%
+#   ggplot(., aes(x = STAID, y = name, fill = value)) +
+#   geom_tile()+
+#   scale_fill_gradient2(low = "red", high = "yellow")
+# 
+# #
 
 
 
@@ -643,67 +733,75 @@ df.compare.G2to2016%>%
 
 
 
-#### Land Use: CDL ####
 
-# the CDL ones in GAGES II do not match the CDL names :/
-# to match them up:
 
-# get the names of the crop from the GAGESII CDL ones:
 
-v<-names(df.G2.reduced)
-cdl_names <- grep("^CDL", v)
-v <- v[cdl_names]
-v_suffix<-sub("^CDL_", "", v)
 
-# now look at the two and compare:
+#### Land Use: Compare CDL ####
 
-v_suffix # GAGES II suffix
-
-names(df.NWIS.CDL.2008) # CDL datalayers
-
-# Soybeans, Corn, Alfalfa, Spring_Wheat, Other_Hay/Non_Alfalfa, Grassland/Pasture, Dbl_Crop_WinWht/Soybeans, Winter_Wheat
-# *note*: ALL_OTHER_LAND is non-crop land, so excluding
-
-keep<-c('Name', 'Corn', 'Soybeans', 'Spring_Wheat', 'Winter_Wheat', 'Dbl_Crop_WinWht/Soybeans', 'Alfalfa', 'Other_Hay/Non_Alfalfa', 'Grassland/Pasture')
-
-# now extract just these from the CDL datalayers df:
-
-temp<-df.NWIS.CDL.2008%>%select(keep)
-
-# rename them to the GAGES II CDL names with a unique ID for it being the datalayers one ([-9] to remove ALL_OTHER_LAND):
-
-names(temp)<-paste0('R_', c('Name', v[-9]))
-
-# now add these columns to the GAGES II df to compare:
-# also set NA to zero and round to 2 decimial places:
-
-df.compare.G2toCDL<-left_join(df.G2.reduced%>%select(STAID, v[-9])%>%mutate(across(where(is.numeric), ~./100)), temp, by = c('STAID'='R_Name'))%>%
-  replace(is.na(.), 0)%>%
-  mutate(across(where(is.numeric), round, 2))
-
-# now compare GAGES II to CDL:
-
-df.compare.G2toCDL<-df.compare.G2toCDL%>%
-  pivot_longer(cols = -STAID)%>%
-  mutate(name = sub('*R_', '', name))%>%
-  group_by(STAID, name) %>%
-  summarise(diff = diff(value)) %>%
-  pivot_wider(names_from = name, values_from = diff) %>%
-  rename_at(-1, ~paste0(., "_diff"))
-
-# and heat map:
-
-df.compare.G2toCDL%>%
-  pivot_longer(cols = -STAID)%>%
-  ggplot(., aes(x = STAID, y = name, fill = value)) +
-  geom_tile()+
-  scale_fill_gradient2(low = "red", high = "yellow")
-
-# finally save a DF of CDL variables to keep:
-
-df.CDL<-df.NWIS.CDL.2008%>%select(keep)
-
-#
+# # **Note** the CDL data was put together in a previous section,
+# # so this section is justfor comparison, thus:
+# # only run for first pass...
+# 
+# # the CDL ones in GAGES II do not match the CDL names :/
+# # to match them up:
+# 
+# # get the names of the crop from the GAGESII CDL ones:
+# 
+# v<-names(df.G2.reduced)
+# cdl_names <- grep("^CDL", v)
+# v <- v[cdl_names]
+# v_suffix<-sub("^CDL_", "", v)
+# 
+# # now look at the two and compare:
+# 
+# v_suffix # GAGES II suffix
+# 
+# names(df.NWIS.CDL.2008) # CDL datalayers
+# 
+# # Soybeans, Corn, Alfalfa, Spring_Wheat, Other_Hay/Non_Alfalfa, Grassland/Pasture, Dbl_Crop_WinWht/Soybeans, Winter_Wheat
+# # *note*: ALL_OTHER_LAND is non-crop land, so excluding
+# 
+# keep<-c('Name', 'Corn', 'Soybeans', 'Spring_Wheat', 'Winter_Wheat', 'Dbl_Crop_WinWht/Soybeans', 'Alfalfa', 'Other_Hay/Non_Alfalfa', 'Grassland/Pasture')
+# 
+# # now extract just these from the CDL datalayers df:
+# 
+# temp<-df.NWIS.CDL.2008%>%select(keep)
+# 
+# # rename them to the GAGES II CDL names with a unique ID for it being the datalayers one ([-9] to remove ALL_OTHER_LAND):
+# 
+# names(temp)<-paste0('R_', c('Name', v[-9]))
+# 
+# # now add these columns to the GAGES II df to compare:
+# # also set NA to zero and round to 2 decimial places:
+# 
+# df.compare.G2toCDL<-left_join(df.G2.reduced%>%select(STAID, v[-9])%>%mutate(across(where(is.numeric), ~./100)), temp, by = c('STAID'='R_Name'))%>%
+#   replace(is.na(.), 0)%>%
+#   mutate(across(where(is.numeric), round, 2))
+# 
+# # now compare GAGES II to CDL:
+# 
+# df.compare.G2toCDL<-df.compare.G2toCDL%>%
+#   pivot_longer(cols = -STAID)%>%
+#   mutate(name = sub('*R_', '', name))%>%
+#   group_by(STAID, name) %>%
+#   summarise(diff = diff(value)) %>%
+#   pivot_wider(names_from = name, values_from = diff) %>%
+#   rename_at(-1, ~paste0(., "_diff"))
+# 
+# # and heat map:
+# 
+# df.compare.G2toCDL%>%
+#   pivot_longer(cols = -STAID)%>%
+#   ggplot(., aes(x = STAID, y = name, fill = value)) +
+#   geom_tile()+
+#   scale_fill_gradient2(low = "red", high = "yellow")
+# 
+# # finally save a DF of CDL variables to keep:
+# 
+# df.CDL<-df.NWIS.CDL.2008%>%select(keep)
+# 
+# #
 
 
 
@@ -728,13 +826,27 @@ df.CDL<-df.NWIS.CDL.2008%>%select(keep)
 
 # download:
 
-# DEM.NWIS<-get_ned(df.sf.NWIS, label = '2') # already SpatRaster!
+# DEM.NWIS<-get_ned(df.sf.NWIS, label = '3') # already SpatRaster!
+
+# write raster:
+
+# first pass:
 
 # writeRaster(DEM.NWIS, file='Downloaded_Data/DEM.NWIS.tif', overwrite=TRUE)
 
+# second pass:
+
+# writeRaster(DEM.NWIS, file='Downloaded_Data/DEM.NWIS.next20.tif', overwrite=TRUE)
+
 # load in rast:
 
-DEM.NWIS<-rast('Downloaded_Data/DEM.NWIS.tif')
+# first pass:
+
+# DEM.NWIS<-rast('Downloaded_Data/DEM.NWIS.tif')
+
+# second pass:
+
+# DEM.NWIS<-rast('Downloaded_Data/DEM.NWIS.next20.tif')
 
 # plot(DEM.NWIS)
 
@@ -752,7 +864,7 @@ DEM.NWIS<-rast('Downloaded_Data/DEM.NWIS.tif')
 # reproject NWIS basins to DEM crs:
 
 # vect.NWIS<-vect(df.sf.NWIS)
-
+# 
 # vect.NWIS.proj<-terra::project(vect.NWIS, crs(DEM.NWIS))
 
 # extract the metrics over each watershed using the function above:
@@ -769,30 +881,46 @@ DEM.NWIS<-rast('Downloaded_Data/DEM.NWIS.tif')
 
 # finally save the df:
 
+# first pass:
+
 # save(df.NWIS.DEM, file= 'Processed_Data/df.NWIS.DEM.Rdata')
 
-load('Processed_Data/df.NWIS.DEM.Rdata')
+# second pass:
+
+# save(df.NWIS.DEM, file= 'Processed_Data/df.NWIS.DEM.next20.Rdata')
+
+# load:
+
+# first pass:
+
+# load('Processed_Data/df.NWIS.DEM.Rdata')
+
+# second pass:
+
+load('Processed_Data/df.NWIS.DEM.next20.Rdata')
 
 # compare to GAGES II:
 
-# Only the median and STD are in GAGES II:
+# **Note** only run for first pass...
 
-df.compare.G2toNED<-left_join(df.NWIS.DEM%>%select(c(1,3,5))%>%rename(R_ELEV_MEDIAN_M_BASIN = 2, R_ELEV_STD_M_BASIN = 3), df.G2.reduced%>%select(STAID, ELEV_MEDIAN_M_BASIN,ELEV_STD_M_BASIN), by = c('Name'='STAID'))%>%
-  mutate(across(where(is.numeric), round, 0))%>%
-  pivot_longer(cols = -Name)%>%
-  mutate(name = sub('*R_', '', name))%>%
-  group_by(Name, name) %>%
-  summarise(diff = diff(value)) %>%
-  pivot_wider(names_from = name, values_from = diff) %>%
-  rename_at(-1, ~paste0(., "_diff"))
-  
-# make heat map:
-
-df.compare.G2toNED%>%
-  pivot_longer(cols = -Name)%>%
-  ggplot(., aes(x = Name, y = name, fill = value)) +
-  geom_tile()+
-  scale_fill_gradient2(low = "red", high = "yellow")
+# # Only the median and STD are in GAGES II:
+# 
+# df.compare.G2toNED<-left_join(df.NWIS.DEM%>%select(c(1,3,5))%>%rename(R_ELEV_MEDIAN_M_BASIN = 2, R_ELEV_STD_M_BASIN = 3), df.G2.reduced%>%select(STAID, ELEV_MEDIAN_M_BASIN,ELEV_STD_M_BASIN), by = c('Name'='STAID'))%>%
+#   mutate(across(where(is.numeric), round, 0))%>%
+#   pivot_longer(cols = -Name)%>%
+#   mutate(name = sub('*R_', '', name))%>%
+#   group_by(Name, name) %>%
+#   summarise(diff = diff(value)) %>%
+#   pivot_wider(names_from = name, values_from = diff) %>%
+#   rename_at(-1, ~paste0(., "_diff"))
+#   
+# # make heat map:
+# 
+# df.compare.G2toNED%>%
+#   pivot_longer(cols = -Name)%>%
+#   ggplot(., aes(x = Name, y = name, fill = value)) +
+#   geom_tile()+
+#   scale_fill_gradient2(low = "red", high = "yellow")
 
 # done with DEM
 
@@ -824,7 +952,7 @@ df.compare.G2toNED%>%
 
 
 
-#### Soils: SURRGO ####
+#### Soils: SURRGO (first pass) ####
 
 # full workflow:
 
@@ -953,6 +1081,123 @@ y<-df.compare.G2tosoils[21:28,]
 
 #
 
+#### Soils: SURRGO (second pass) ####
+
+l.soils<-lapply(df.sf.NWIS$Name, \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.1to6, file='Processed_Data/l.soils.1.Rdata')
+load('Processed_Data/l.soils.1.Rdata')
+
+# the second running it got to 20th site:
+
+# l.soils.7to20<-lapply(df.sf.NWIS$Name[7:20], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.7to20, file='Processed_Data/l.soils.2.Rdata')
+load('Processed_Data/l.soils.2.Rdata')
+
+# third:
+
+# l.soils.21<-lapply(df.sf.NWIS$Name[21], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.21, file='Processed_Data/l.soils.3.Rdata')
+load('Processed_Data/l.soils.3.Rdata')
+
+# fourth:
+
+# l.soils.22to39<-lapply(df.sf.NWIS$Name[22:39], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.22to39, file='Processed_Data/l.soils.4.Rdata')
+load('Processed_Data/l.soils.4.Rdata')
+
+# fifth:
+
+# l.soils.40tox<-lapply(df.sf.NWIS$Name[40:42], \(i) fun.SURRGO_HSG(i, df.sf.NWIS))
+# save(l.soils.40tox, file='Processed_Data/l.soils.5.Rdata')
+load('Processed_Data/l.soils.5.Rdata')
+
+# troubleshoot for when soils are already downloaded:
+
+# l.soils<-lapply(df.sf.NWIS$Name, \(i) fun.SURRGO_HSG.already_downloaded(i, df.sf.NWIS))
+
+# combine into single list:
+
+l.soils<-c(l.soils.1to6, l.soils.7to20, l.soils.21, l.soils.22to39, l.soils.40tox)
+
+names(l.soils)<-df.sf.NWIS$Name
+
+# look at how much of the watershed is represented:
+
+sapply(l.soils, \(i) sum(i$Watershed_Percent))
+
+# combine into single dataframe:
+# *note that when you bind_rows the order of the stations is similar to sort() which is different than the order in the list. e.g. try running: df.sf.NWIS$Name==sort(df.sf.NWIS$Name)
+
+df.soils<-bind_rows(l.soils, .id = 'Name')
+
+# replace X/D HSG with just D:
+
+df.soils$HSG<-gsub(".*/.*", "D", df.soils$HSG)
+
+# group by and summarize HSG D for all sites:
+
+df.soils<-df.soils%>%group_by(Name, HSG)%>%summarise(Watershed_Percent = sum(Watershed_Percent))
+
+# pivot wider:
+
+df.soils<-df.soils%>%pivot_wider(names_from = HSG, values_from = Watershed_Percent)
+
+# set na to zero:
+
+df.soils[is.na(df.soils)]<-0
+
+# create column of HSG coverage:
+
+df.soils$HSG.coverage<-rowSums(df.soils[, sapply(df.soils, is.numeric)])
+
+# multiple by watershed area to get sqmis of %HSG: to do this:
+
+# read in site metadata (with drainage area in sqmi):
+
+df.NWIS.TP_site_metadata<-read.csv("Raw_Data/df.NWIS.TP_site_metadata.csv", colClasses = c(site_no = "character"))%>%
+  filter(site_no %in% df.sf.NWIS$Name)%>%
+  select(site_no, drain_area_va)
+
+# merge with df.soils and multpliy HSG columns by area:
+
+df.soils.sqmi<-df.soils%>%
+  left_join(., df.NWIS.TP_site_metadata, by = c('Name'='site_no'))%>%
+  mutate(across(c(A,B,C,D), ~.*drain_area_va))
+
+# QA with streamstats: to do this:
+
+# merge df.soils with SSURGO columns from df.sf.NWIS: to do this:
+
+# save and modify streamstats soil df:
+
+temp<-df.sf.NWIS%>%
+  select(Name, starts_with('SSURGO'))%>%
+  mutate(across(where(is.numeric), ~./100)) #%>%
+#   left_join(., df.NWIS.TP_site_metadata, by = c('Name'='site_no'))%>%
+#   mutate(across(starts_with('SSURGO'), ~.*drain_area_va))%>%
+#   select(-drain_area_va)
+
+df.compare.G2tosoils<-left_join(temp,df.soils, by = 'Name')%>%
+  mutate(A_err = ((A-SSURGOA)/SSURGOA)*100, B_err = ((B-SSURGOB)/SSURGOB)*100, .after = Name)%>%
+  arrange(abs(A_err))%>%
+  ungroup()
+
+x<-df.compare.G2tosoils[1:10,]
+
+# mapview(x)
+
+y<-df.compare.G2tosoils[21:28,]
+
+# mapview(y)
+
+# look at map of sites with low HSG coverage:
+
+# left_join(df.sf.NWIS, df.soils, by = 'Name')%>%filter(HSG.coverage<.85)%>%mapview(., zcol = 'HSG.coverage')
+
+# can see that it is not the ADK sites butratherthe catskill sites (and some urban sites in CNY) that have low HSG coverage
+# I think this means that it is not poor ssurgo coverage, since there are map units for the entire watersehed (I am not showing that here but it is true) rather there is not HSG (NA) for those units
+
+#
 
 
 
