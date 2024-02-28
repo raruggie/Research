@@ -202,11 +202,13 @@ temp<-df.sf.NWIS%>%
 
 
 
-#### Delinating Watersheds for 68 sites ####
+#### Delinating Watersheds for second pass ####
 
-# the 68 sites are:
+# the second pass sites are:
 
 load('Processed_Data/TP.68.Rdata')
+
+# note that 68 is meaning less..i changed the filter because I was wrong the first time
 
 # this is the metadata for these sites:
 

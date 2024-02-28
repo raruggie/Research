@@ -108,7 +108,7 @@ df.NWIS.Q_sites <- read.csv("C:/PhD/CQ/Raw_Data/df.NWIS.Q_sites.csv", colClasses
 # I realize now that this is proably not needed since I am grouping by the site number so the resulting number used in the
 # raw flow data download will have what it has, but I am just goin to keep this (aka i could just use distinct?)
 # also rename some columns and convert them to numeric:
-# also filter to just the sites with over 20 nflow days since this is the number restriction on the number of samples:
+# also filter to just the sites with >= 20 nflow days since this is the number restriction on the number of samples:
 
 df.NWIS.Q_sites<-df.NWIS.Q_sites%>%
   group_by(site_no)%>%
@@ -180,31 +180,40 @@ df.NWIS.TP<-read.csv("Raw_Data/df.NWIS.TP.csv", colClasses = c(site_no = "charac
 
 df.NWIS.TP_CQ<-left_join(df.NWIS.TP, df.NWIS.Q, by=c("site_no"="site_no", "sample_dt"="Date"))
 
-# remove observations where there are not CQ pairs:
-
-df.NWIS.TP_CQ<-df.NWIS.TP_CQ%>%drop_na(X_00060_00003)
-
 # take average of multiple samples on the same day at the same site:
 
 df.NWIS.TP_CQ<-df.NWIS.TP_CQ%>%
   group_by(site_no, sample_dt)%>%
-  summarise_at(vars(result_va, X_00060_00003), funs(mean(., na.rm=TRUE)))
-  
-# arrange by number of TP observations. To do this:
+  summarise_at(vars(result_va, X_00060_00003), funs(mean(., na.rm=TRUE)))%>%
+  ungroup()
 
-# first arrange the dataframe with the number of samples: 
+# remove sites where there are not >= 20 CQ pairs:
+
+df.NWIS.TP_CQ<-df.NWIS.TP_CQ%>%
+  drop_na(result_va, X_00060_00003)%>%
+  group_by(site_no)%>%
+  mutate(n=n())%>%
+  ungroup()%>%
+  filter(n>=20)%>%
+  select(-n) # remove n column because going to get added back in next steps
+
+# add column for number of paired observations by rank: to do this:
+
+# create column for n_sample_rank:
 
 temp<-df.NWIS.TP%>%group_by(site_no)%>%
   summarise(n=n())%>%
   arrange(desc(n))%>%
   mutate(n_sample_rank=rank(-n, ties.method='first'))
 
-# finally merge this df with df.NWIS.TP_CQ and arrange by the new column:
+# merge this df with df.NWIS.TP_CQ and arrange by the new column:
 
 df.NWIS.TP_CQ<-left_join(df.NWIS.TP_CQ,temp, by='site_no')%>%
   arrange(n_sample_rank)
 
-# next step is to use Q yield to get better looking plot... idk if it will help but want to try also doesnt hurt to have the watershed areas as well. To do this:
+# next step is to determine which sites have draiange area listed
+# if no draiange area is listed, there is no way to determine if delineation
+# is correct. to do this:
 
 # download the drainage areas from site metadata using readNWISsite
 
@@ -220,13 +229,13 @@ df.DA<-df.NWIS.TP_site_metadata%>%
   select(site_no, drain_area_va)
 
 # finally merge with df.NWIS.TP_CQ and create a new Q column with area normalized flows (not worrying about units right now): 
-# Note: will filter for NA in C and Q for breakpoint analysis in the next step as to keep the full list of sites with CQ pairs in this dataframe.
-# Note: Some sites returned NA on draiange areas in readNWISsite, but I'll delinate anyways so I want the full list:
+# Note: Some sites returned NA on draiange areas in readNWISsite:
 
 df.NWIS.TP_CQ<-left_join(df.NWIS.TP_CQ, df.DA, by = 'site_no')%>%
-  mutate(Q_yield = X_00060_00003/drain_area_va)
+  mutate(Q_yield = X_00060_00003/drain_area_va)%>%
+  drop_na(drain_area_va)
 
-# 137 sites
+# length(unique(df.NWIS.TP_CQ$site_no))  121 sites
 
 
 
@@ -348,102 +357,68 @@ m
 
 #### Apply filters to sites ####
 
-# the first filter is to remove data points and thus potentially entire sites
-# that are prior to 2000:
+# number of sites with >=20 paired CQ observations:
 
-temp1<-df.NWIS.TP_CQ%>%filter(sample_dt >= as.Date('2001-01-10'))
+length(unique(df.NWIS.TP_CQ$site_no))
 
-unique(temp1$site_no)
+# 1) sites with samples after 2001:
 
-# 82 sites
+# note that you need to rerun the 
+# number of sample filter again because some sites 
+# have data pre and post 2001
 
-# but how many of these sites have 20 paired CQ observations?
-
-temp1.1<-temp1%>%
-  rename(Name = site_no)%>%
-  select(Name, sample_dt,result_va, X_00060_00003)%>%mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-  filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))%>%
-  group_by(Name)%>%
-  summarise(n=n())%>%
+temp1<-df.NWIS.TP_CQ%>%filter(sample_dt >= as.Date('2001-01-10'))%>%
+  group_by(site_no)%>%
+  mutate(n=n())%>%
   filter(n>=20)
 
-dim(temp1.1)[1] 
+length(unique(temp1$site_no))
 
-# only 69
+# 64 sites
 
-# reduce temp1 to these sites:
+# 2) sites not on long island
 
-temp1<-temp1%>%filter(site_no %in% temp1.1$Name)
+# use latitude to filter:
 
-# the next filter is to remove sites that are on long island
-# to do this use latitude:
+temp2<-temp1%>%filter(site_no %in% filter(df.NWIS.TP_site_metadata, dec_lat_va >40.9364)$site_no)
 
-temp2<-filter(df.NWIS.TP_site_metadata, dec_lat_va >40.9364)
+length(unique(temp2$site_no))
 
-# now use this site list to filter down the df.TP_CQ:
+# 63 sites
 
-temp3<-temp1%>%filter(site_no %in% temp2$site_no)
+# 3) sites in gauges 2
 
-unique(temp3$site_no)
+# read in G2: to do this
 
-# 68 sites
-
-# save this df for export (to be used now that I can recreate G2 predictors using datalayers):
-
-df.TP_CQ.68<-temp3
-
-# the last filter is gauges 2:
-
-# read in all sheets using function
-
-# l.G2 <- read_excel_allsheets("Raw_Data/gagesII_sept30_2011_conterm.xlsx")
-
-# remove the last element (does notcomtain useful info)
-
-# l.G2[[27]]<-NULL
-
-# and convert to a single df
-
-# df.G2<-reduce(l.G2, full_join, by = "STAID")
-
-# save df.G2:
-
-# save(df.G2, l.G2, file = 'Processed_Data/df.G2.Rdata')
-
-# load df.G2:
-
-load('Processed_Data/df.G2.Rdata')
+# l.G2 <- read_excel_allsheets("Raw_Data/gagesII_sept30_2011_conterm.xlsx") # read in all sheets using function:
+# l.G2[[27]]<-NULL # remove the last element (does notcomtain useful info)
+# df.G2<-reduce(l.G2, full_join, by = "STAID") # convert to a single df
+# save(df.G2, l.G2, file = 'Processed_Data/df.G2.Rdata') # save df.G2:
+load('Processed_Data/df.G2.Rdata') # load df.G2:
 
 # filter on G2:
 
-temp4<-temp3%>%filter(site_no %in% df.G2$STAID)
+temp3<-temp2%>%filter(site_no %in% df.G2$STAID)
 
-unique(temp4$site_no)
+unique(temp3$site_no)
 
 # 42 sites
 
-# save this as the df to move onto future analysis:
-# need to also remove samples after 2001: (I actually dont think I need to do this but keeping it anyways...)
-
-df.TP_CQ<-temp4%>%filter(sample_dt >= as.Date('2001-01-10'))
-
-# map:
-
-# df.NWIS.TP_site_metadata%>%
-#   filter(site_no %in% temp4$site_no)%>%
-#   st_as_sf(.,coords=c('dec_long_va','dec_lat_va'), crs = 4326, remove = FALSE)%>%
-#   mapview(.)
+# one last test: redoing the filters but with no removing date restriction:
 
 # number of sites in gauges 2:
 
-x<-filter(df.NWIS.TP_site_metadata, site_no %in%df.G2$STAID)
+x1<-filter(df.NWIS.TP_CQ, site_no %in%df.G2$STAID)
 
-# 89 sites
+length(unique(x1$site_no))
 
-# number of sites in gauges 2 and not on LI (i.e. without post 2001 filter):
+# 83 sites
 
-x<-temp2%>%filter(site_no%in% df.G2$STAID)
+# number of sites in gauges 2 and not on LI:
+
+x2<-x1%>%filter(site_no %in% filter(df.NWIS.TP_site_metadata, dec_lat_va >40.9364)$site_no)
+
+length(unique(x2$site_no))
 
 # 73 sites
 
@@ -465,11 +440,35 @@ x<-temp2%>%filter(site_no%in% df.G2$STAID)
 
 
 
-#### Export data ####
+
+
+
+
+
+
+
+
+####~~ Finalizing df.TP_CQ to move on in code ~~####
+
+#### first pass ####
+
+df.TP_CQ<-temp3
+
+# save:
 
 # save(df.TP_CQ,file = 'Processed_Data/TP.Rdata')
 
+#### second pass ####
+
+df.TP_CQ.68<-temp2
+
+# save:
+
 # save(df.TP_CQ.68, file = 'Processed_Data/TP.68.Rdata')
+
+# going to write over df.TP_CQ for this code to work smoothly with the these sites
+
+df.TP_CQ<-df.TP_CQ.68
 
 #
 
