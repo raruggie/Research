@@ -400,7 +400,7 @@ load('Processed_Data/df.G2.Rdata') # load df.G2:
 
 temp3<-temp2%>%filter(site_no %in% df.G2$STAID)
 
-unique(temp3$site_no)
+length(unique(temp3$site_no))
 
 # 42 sites
 
@@ -460,15 +460,15 @@ df.TP_CQ<-temp3
 
 #### second pass ####
 
-df.TP_CQ.68<-temp2
+df.TP_CQ.SP<-temp2
 
 # save:
 
-# save(df.TP_CQ.68, file = 'Processed_Data/TP.68.Rdata')
+# save(df.TP_CQ.SP, file = 'Processed_Data/TP.SP.Rdata')
 
 # going to write over df.TP_CQ for this code to work smoothly with the these sites
 
-df.TP_CQ<-df.TP_CQ.68
+df.TP_CQ<-df.TP_CQ.SP
 
 #
 
@@ -500,7 +500,9 @@ l_Seg<-list()
 
 davies.test.matrix<-NULL
 
-# create a new dataframe of only paired CQ observations (such that the breakpoit analysis function runs smoothly) (I didnt want to do this in loop for some reason, I cant remeber why but it wouldnt work):
+# create a new dataframe of only paired CQ observations 
+# (such that the breakpoit analysis function runs smoothly) 
+# * this should notchange the df!! drop_na is just a check, this should have been done earlier in the code
 
 df.TP_CQ_for_BP<-df.TP_CQ%>%
   drop_na(result_va, Q_yield)
@@ -826,304 +828,234 @@ df.Yield.2model <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pi
 #### Correlations ####
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-# reduce the predictor set down to those we believe are defensible:
+# note: only run for first pass
 
-# I also went in to the variable description excel sheet and isolated these variables as well:
+# start of comment out:
 
-temp1<-read.csv('Processed_Data/G2_pred_to_keep_2.csv')[,1]
-
-# combining these with the vairbales in entire sheets as well:
-
-pred_to_keep<-c("HYDRO_DISTURB_INDX", 
-               "pre1990_STOR", 
-               names(l.G2$Landscape_Pat), 
-               names(l.G2$LC06_Basin),
-               names(l.G2$LC_Crops),
-               temp1,
-               # 'HGA', 'HGB', 'HGC', 'HGD',
-               "ELEV_MEDIAN_M_BASIN",
-               "ELEV_STD_M_BASIN",
-               "RRMEDIAN"
-)
-
-# removing 'STADID':
-
-pred_to_keep <- pred_to_keep[!(pred_to_keep %in% "STAID")]
-
-# removing the duplicates of DEV and PDEN, and also CDL_WWHT_SOY_DBL_CROP
-
-pred_to_keep <- pred_to_keep[!(pred_to_keep %in% c("DEVOPENNLCD06","DEVLOWNLCD06","DEVMEDNLCD06","DEVHINLCD06", "PDEN_DAY_LANDSCAN_2007", "PDEN_NIGHT_LANDSCAN_2007", "CDL_WWHT_SOY_DBL_CROP"))]
-
-# filtering df.G2 to this predictor list and sites:
-
-df.G2.reduced<-df.G2%>%
-  select(c('STAID', pred_to_keep, starts_with('HG')))%>%
-  filter(STAID %in% df.TP_CQ$site_no)
-
-# take the average of the RIP and MAIN for each land use:
-
+# # reduce the predictor set down to those we believe are defensible:
+# 
+# # I also went in to the variable description excel sheet and isolated these variables as well:
+# 
+# temp1<-read.csv('Processed_Data/G2_pred_to_keep_2.csv')[,1]
+# 
+# # combining these with the vairbales in entire sheets as well:
+# 
+# pred_to_keep<-c("HYDRO_DISTURB_INDX", 
+#                "pre1990_STOR", 
+#                names(l.G2$Landscape_Pat), 
+#                names(l.G2$LC06_Basin),
+#                names(l.G2$LC_Crops),
+#                temp1,
+#                # 'HGA', 'HGB', 'HGC', 'HGD',
+#                "ELEV_MEDIAN_M_BASIN",
+#                "ELEV_STD_M_BASIN",
+#                "RRMEDIAN"
+# )
+# 
+# # removing 'STADID':
+# 
+# pred_to_keep <- pred_to_keep[!(pred_to_keep %in% "STAID")]
+# 
+# # removing the duplicates of DEV and PDEN, and also CDL_WWHT_SOY_DBL_CROP
+# 
+# pred_to_keep <- pred_to_keep[!(pred_to_keep %in% c("DEVOPENNLCD06","DEVLOWNLCD06","DEVMEDNLCD06","DEVHINLCD06", "PDEN_DAY_LANDSCAN_2007", "PDEN_NIGHT_LANDSCAN_2007", "CDL_WWHT_SOY_DBL_CROP"))]
+# 
+# # filtering df.G2 to this predictor list and sites:
+# 
+# df.G2.reduced<-df.G2%>%
+#   select(c('STAID', pred_to_keep, starts_with('HG')))%>%
+#   filter(STAID %in% df.TP_CQ$site_no)
+# 
+# # take the average of the RIP and MAIN for each land use:
+# 
+# # df.G2.reduced<-df.G2.reduced%>%
+# #   rowwise() %>%
+# #   mutate(MAIN_RIP_DEV_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("DEV")), na.rm = TRUE),
+# #          MAIN_RIP_FOREST_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("FOREST")), na.rm = TRUE),
+# #          MAIN_RIP_PLANT_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("PLANT")), na.rm = TRUE),
+# #          .keep = 'unused'
+# #          )
+# 
+# # adding up the other crops:
+# 
 # df.G2.reduced<-df.G2.reduced%>%
-#   rowwise() %>%
-#   mutate(MAIN_RIP_DEV_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("DEV")), na.rm = TRUE),
-#          MAIN_RIP_FOREST_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("FOREST")), na.rm = TRUE),
-#          MAIN_RIP_PLANT_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("PLANT")), na.rm = TRUE),
-#          .keep = 'unused'
-#          )
-
-# adding up the other crops:
-
-df.G2.reduced<-df.G2.reduced%>%
-  mutate(sum_of_misc_crops = sum(c_across(ends_with(c("COTTON", "RICE", "SORGHUM", "SUNFLOWERS", "PEANUTS", "BARLEY", "DURUM_WHEAT", "OATS", "DRY_BEANS", "POTATOES", "ORANGES", 'OTHER_CROPS', 'IDLE'))), na.rm = TRUE), .keep = 'unused')
-
-names(df.G2.reduced)
-
-# export this predictor set for the 42 sites:
-
-save(df.G2.reduced, file = 'Processed_Data/df.G2.reduced.Rdata')
-
-# combined the reduced predictors df with the already filtered CQ data:
-
-df.Correlation<-df.TP_CQ%>%
-  rename(Name = site_no)%>%
-  select(Name, sample_dt,result_va, X_00060_00003)%>%mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-  filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))%>%
-  left_join(., df.G2.reduced, by = c('Name'='STAID'))
-
-# create a dataframe with OLS and sens slope intercept and slopes:
-
-df.OLS<-df.Correlation%>%
-  group_by(Name)%>%
-  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
-  summarize(., OLS.I = OLS.co[1], 
-            OLS.S = OLS.co[2])
-  }) %>%
-  ungroup
-
-df.Sens<-df.Correlation%>%
-  group_by(Name)%>%
-  do({ Sens.co<-zyp.sen(log_C~log_Q,.)
-  summarize(., Sen.I = Sens.co$coefficients[[1]],
-            Sen.S= Sens.co$coefficients[[2]])
-  }) %>%
-  ungroup
-
-# merge OLS and Sens:
-
-df.OLS_Sens<-left_join(df.OLS, df.Sens, by = 'Name')
-
-# merge constiuent yield:
-
-df.OLS_Sens<-left_join(df.OLS_Sens, df.Yield, by = 'Name')
-
-# merge back the watershed characteristic data to this dataframe:
-
-df.OLS_Sens<-left_join(df.OLS_Sens, df.G2.reduced, by = c('Name'='STAID'))
-
-# now run correlations between intercepts and slopes and watershed characteristics. to do this: (I orginally did this workflow using n_months (C:\PhD\Research\Mohawk\Code\Mohawk_Regression-analyizing_predictor_df.R)
-
-# set up variable for number of sites:
-
-n_sites<-dim(df.OLS_Sens)[1] 
-
-# use the corrr package to correlate() and focus() on your variable of choice.
-
-df.cor <- df.OLS_Sens %>% 
-  correlate(method = 'spearman') %>%
-  focus(c(OLS.I, OLS.S, Sen.I, Sen.S, Yield))%>%
-  pivot_longer(cols= c(2:6), names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
-  mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
-  mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
-  drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
-
-# I also want to try standardizing the predictors:
-
-df.cor.0to1<-df.OLS_Sens %>% 
-  mutate(across(7:last_col(), ~ (.-min(.))/(max(.)-min(.))))%>% # could add term: .names = "{.col}_standarized")
-  correlate(method = 'spearman') %>%
-  focus(c(OLS.I, OLS.S, Sen.I, Sen.S, Yield))%>%
-  pivot_longer(cols= c(2:6), names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
-  mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
-  mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
-  drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
-
-# looking at the regualr and 0 to 1 standarized spearman correlaitons, they are the same
-
-df.cor$Spearman_Correlation==df.cor.0to1$Spearman_Correlation
-
-# so not going to proceed with 0 to 1
-
-# then plot results: to do this:
-
-# create a list of each CQ parameter (4: OLS and Sens slope and intercept)and format it for ggplotting:
-
-l.cor<-df.cor %>%
-  split(., df.cor$CQ_Parameter)%>%
-  lapply(., \(i) i%>% 
-           arrange(Spearman_Correlation)%>%  
-           slice_head(n = 7)%>%
-           bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
-           mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
-           mutate(term = factor(term, levels = unique(term[order(Spearman_Correlation)])))%>%
-           filter(!between(Spearman_Correlation, -0.25,.25))) # Order by correlation strength
-
-# make plot list using lapply:
-
-plist<-lapply(l.cor, \(i) i%>%ggplot(aes(x = term, y = Spearman_Correlation, color = sig_0.05)) +
-                geom_bar(stat = "identity") +
-                scale_color_manual(values = c("not" = "red", "sig" = "blue"),na.value = NA, drop = FALSE)+
-                facet_wrap('CQ_Parameter')+
-                ylab(paste('Spearman Correlation')) +
-                xlab("Watershed Attribute")+
-                theme(axis.text.x=element_text(angle=40,hjust=1))+
-                theme(legend.position="bottom"))
-
-# arrange plots:
-
-p1<-ggpubr::ggarrange(plotlist = plist, ncol=3, nrow=2, common.legend = TRUE, legend="bottom")
-
-# add title:
-
-p1<-annotate_figure(p1, top = text_grob(paste(ncode, "Correlated Against Gauges 2"),
-                                        color = "red", face = "bold", size = 14))
-# plot:
-
-p1
-
-# save(p1, file = 'Processed_Data/p1.Rdata')
-
-# univariate plots of the top correlates/small land use types:
-
-# Lets do plots of OLS intercept: to do this:
-
-# determine the top correlates (the numberof the list determined which CQ parameter)
-# here 1 = OLS intercept:
-
-OLS<-l.cor[[1]]%>%arrange(desc(Spearman_Correlation))
-
-# make univariate plots (facets) of Y (determined in [[]]) above and predictors: 
-# note the predictor column isturned into an ordered factor based on thespearman correlation values
-# to makethe facet plots in order:
-
-df.OLS_Sens%>%
-  select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
-  pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
-  drop_na(Value)%>%
-  # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
-  left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
-  mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
-  ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
-  geom_smooth(method = 'lm')+
-  geom_point()+
-  facet_wrap('Type', scales = 'free')+
-  ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
-
-# create a function to use lapply to plot all 4 univariate sets:
-
-# number<-5
-
-# make_plot<-function(number){
-#   
-#   OLS<-l.cor[[number]]%>%arrange(desc(Spearman_Correlation))
-#   
-#   x<-df.OLS_Sens%>%
-#     select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
-#     pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
-#     drop_na(Value)%>%
-#     # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
-#     left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
-#     mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
-#     ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
-#     geom_smooth(method = 'lm')+
-#     geom_point()+
-#     facet_wrap('Type', scales = 'free')+
-#     ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
-#   
-#   x
-#   
-# }
-
-# use function in lapply (clear plot list first):
-
-# lapply(c(1:5), \(i) make_plot(i))
-
-#
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#### Categorizing land use  ####
-
-# note* this section should come after regular old correlations such that df.OLS_Sens has the G2 predictors:
-
-# USGS criteria:
-# Agricultural sites have >50% agricultural land and ≤5% urban land;
-# urban sites have >25% urban and ≤25% agricultural land;
-# undeveloped sites have ≤ 5% urban and ≤ 25% agricultural land;
-# all other combinations of urban, agricultural, and undeveloped lands are classified as mixed
-
-# initate a dataframe with the landuse values from gauges 2:
-
-df.NLCD06<-distinct(df.OLS_Sens, Name, .keep_all = T)
-
-# I confirmed that pasture + crops = plant:
-
-(df.NLCD06$PASTURENLCD06+df.NLCD06$CROPSNLCD06)==df.NLCD06$PLANTNLCD06
-
-# and that the ones that start with DEV sum up to the first DEV one.
-
-# create the land use class column based on USGS critiera:
-# adjusted thresholds:
-
-df.NLCD06<-df.NLCD06%>%
-  mutate(USGS.LU.Adjusted = case_when(.default = 'Mixed',
-                                      PLANTNLCD06 > 30 & DEVNLCD06 <= 10 ~ 'Agriculture',
-                                      DEVNLCD06 > 10 & PLANTNLCD06 <= 30 ~ 'Urban',
-                                      DEVNLCD06+PLANTNLCD06 <= 10 ~ 'Undeveloped'))
-
-# frequency table:
-
-table(df.NLCD06$USGS.LU.Adjusted)
-
-# boxplots of
-
-p<-df.NLCD06%>%
-  pivot_longer(cols = 2:5, names_to = 'CQ_parameter', values_to = 'Value')%>%
-  ggplot(., aes(x=USGS.LU.Adjusted, y=Value, color =USGS.LU.Adjusted ))+
-  geom_boxplot(varwidth = TRUE, alpha=0.2)+
-  # scale_x_discrete(labels=my_xlab)+
-  facet_wrap('CQ_parameter', scales = 'free')+
-  stat_compare_means(method = "anova")+      # Add global p-value # , label.y = max(df.datalayers$Value) ???
-  stat_compare_means(label = "p.signif", method = "t.test",
-                     ref.group = "0.5") +
-  ggtitle('Adjusted USGS Thresholds using Aggregated Data Layers')
-
-# p
-
-#
+#   mutate(sum_of_misc_crops = sum(c_across(ends_with(c("COTTON", "RICE", "SORGHUM", "SUNFLOWERS", "PEANUTS", "BARLEY", "DURUM_WHEAT", "OATS", "DRY_BEANS", "POTATOES", "ORANGES", 'OTHER_CROPS', 'IDLE'))), na.rm = TRUE), .keep = 'unused')
+# 
+# names(df.G2.reduced)
+# 
+# # export this predictor set for the 42 sites:
+# 
+# save(df.G2.reduced, file = 'Processed_Data/df.G2.reduced.Rdata')
+# 
+# # combined the reduced predictors df with the already filtered CQ data:
+# 
+# df.Correlation<-df.TP_CQ%>%
+#   rename(Name = site_no)%>%
+#   select(Name, sample_dt,result_va, X_00060_00003)%>%mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
+#   filter(is.finite(log_C))%>%
+#   filter(is.finite(log_Q))%>%
+#   left_join(., df.G2.reduced, by = c('Name'='STAID'))
+# 
+# # create a dataframe with OLS and sens slope intercept and slopes:
+# 
+# df.OLS<-df.Correlation%>%
+#   group_by(Name)%>%
+#   do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+#   summarize(., OLS.I = OLS.co[1], 
+#             OLS.S = OLS.co[2])
+#   }) %>%
+#   ungroup
+# 
+# df.Sens<-df.Correlation%>%
+#   group_by(Name)%>%
+#   do({ Sens.co<-zyp.sen(log_C~log_Q,.)
+#   summarize(., Sen.I = Sens.co$coefficients[[1]],
+#             Sen.S= Sens.co$coefficients[[2]])
+#   }) %>%
+#   ungroup
+# 
+# # merge OLS and Sens:
+# 
+# df.OLS_Sens<-left_join(df.OLS, df.Sens, by = 'Name')
+# 
+# # merge constiuent yield:
+# 
+# df.OLS_Sens<-left_join(df.OLS_Sens, df.Yield, by = 'Name')
+# 
+# # merge back the watershed characteristic data to this dataframe:
+# 
+# df.OLS_Sens<-left_join(df.OLS_Sens, df.G2.reduced, by = c('Name'='STAID'))
+# 
+# # now run correlations between intercepts and slopes and watershed characteristics. to do this: (I orginally did this workflow using n_months (C:\PhD\Research\Mohawk\Code\Mohawk_Regression-analyizing_predictor_df.R)
+# 
+# # set up variable for number of sites:
+# 
+# n_sites<-dim(df.OLS_Sens)[1] 
+# 
+# # use the corrr package to correlate() and focus() on your variable of choice.
+# 
+# df.cor <- df.OLS_Sens %>% 
+#   correlate(method = 'spearman') %>%
+#   focus(c(OLS.I, OLS.S, Sen.I, Sen.S, Yield))%>%
+#   pivot_longer(cols= c(2:6), names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
+#   mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
+#   mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
+#   drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
+# 
+# # I also want to try standardizing the predictors:
+# 
+# df.cor.0to1<-df.OLS_Sens %>% 
+#   mutate(across(7:last_col(), ~ (.-min(.))/(max(.)-min(.))))%>% # could add term: .names = "{.col}_standarized")
+#   correlate(method = 'spearman') %>%
+#   focus(c(OLS.I, OLS.S, Sen.I, Sen.S, Yield))%>%
+#   pivot_longer(cols= c(2:6), names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
+#   mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
+#   mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
+#   drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
+# 
+# # looking at the regualr and 0 to 1 standarized spearman correlaitons, they are the same
+# 
+# df.cor$Spearman_Correlation==df.cor.0to1$Spearman_Correlation
+# 
+# # so not going to proceed with 0 to 1
+# 
+# # then plot results: to do this:
+# 
+# # create a list of each CQ parameter (4: OLS and Sens slope and intercept)and format it for ggplotting:
+# 
+# l.cor<-df.cor %>%
+#   split(., df.cor$CQ_Parameter)%>%
+#   lapply(., \(i) i%>% 
+#            arrange(Spearman_Correlation)%>%  
+#            slice_head(n = 7)%>%
+#            bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
+#            mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
+#            mutate(term = factor(term, levels = unique(term[order(Spearman_Correlation)])))%>%
+#            filter(!between(Spearman_Correlation, -0.25,.25))) # Order by correlation strength
+# 
+# # make plot list using lapply:
+# 
+# plist<-lapply(l.cor, \(i) i%>%ggplot(aes(x = term, y = Spearman_Correlation, color = sig_0.05)) +
+#                 geom_bar(stat = "identity") +
+#                 scale_color_manual(values = c("not" = "red", "sig" = "blue"),na.value = NA, drop = FALSE)+
+#                 facet_wrap('CQ_Parameter')+
+#                 ylab(paste('Spearman Correlation')) +
+#                 xlab("Watershed Attribute")+
+#                 theme(axis.text.x=element_text(angle=40,hjust=1))+
+#                 theme(legend.position="bottom"))
+# 
+# # arrange plots:
+# 
+# p1<-ggpubr::ggarrange(plotlist = plist, ncol=3, nrow=2, common.legend = TRUE, legend="bottom")
+# 
+# # add title:
+# 
+# p1<-annotate_figure(p1, top = text_grob(paste(ncode, "Correlated Against Gauges 2"),
+#                                         color = "red", face = "bold", size = 14))
+# # plot:
+# 
+# p1
+# 
+# # save(p1, file = 'Processed_Data/p1.Rdata')
+# 
+# # univariate plots of the top correlates/small land use types:
+# 
+# # Lets do plots of OLS intercept: to do this:
+# 
+# # determine the top correlates (the numberof the list determined which CQ parameter)
+# # here 1 = OLS intercept:
+# 
+# OLS<-l.cor[[1]]%>%arrange(desc(Spearman_Correlation))
+# 
+# # make univariate plots (facets) of Y (determined in [[]]) above and predictors: 
+# # note the predictor column isturned into an ordered factor based on thespearman correlation values
+# # to makethe facet plots in order:
+# 
+# df.OLS_Sens%>%
+#   select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
+#   pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
+#   drop_na(Value)%>%
+#   # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
+#   left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
+#   mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
+#   ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
+#   geom_smooth(method = 'lm')+
+#   geom_point()+
+#   facet_wrap('Type', scales = 'free')+
+#   ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
+# 
+# # create a function to use lapply to plot all 4 univariate sets:
+# 
+# # number<-5
+# 
+# # make_plot<-function(number){
+# #   
+# #   OLS<-l.cor[[number]]%>%arrange(desc(Spearman_Correlation))
+# #   
+# #   x<-df.OLS_Sens%>%
+# #     select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
+# #     pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
+# #     drop_na(Value)%>%
+# #     # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
+# #     left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
+# #     mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
+# #     ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
+# #     geom_smooth(method = 'lm')+
+# #     geom_point()+
+# #     facet_wrap('Type', scales = 'free')+
+# #     ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
+# #   
+# #   x
+# #   
+# # }
+# 
+# # use function in lapply (clear plot list first):
+# 
+# # lapply(c(1:5), \(i) make_plot(i))
+# 
+# #
+
+# end of comment out
 
 
 
@@ -1155,104 +1087,108 @@ p<-df.NLCD06%>%
 #### Correlations with 'top50' ####
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-# determine the median flow rate for each sites CQ observations: to do this:
+# note: only run for first pass
 
-df.TP_CQ.top50<-split(df.TP_CQ, f = df.TP_CQ$site_no)%>% # split the df into list of dfs for each site, 
-  lapply(., \(i) i%>%filter(X_00060_00003>median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
-  bind_rows(.) # bind back into single dataframe:
+# start comment out:
 
-# now run through the Correlations workflow for the top50 OLS model:
+# # determine the median flow rate for each sites CQ observations: to do this:
+# 
+# df.TP_CQ.top50<-split(df.TP_CQ, f = df.TP_CQ$site_no)%>% # split the df into list of dfs for each site, 
+#   lapply(., \(i) i%>%filter(X_00060_00003>median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
+#   bind_rows(.) # bind back into single dataframe:
+# 
+# # now run through the Correlations workflow for the top50 OLS model:
+# 
+# df.Correlation.top50<-df.TP_CQ.top50%>%
+#   rename(Name = site_no)%>%
+#   select(Name, sample_dt,result_va, X_00060_00003)%>%mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
+#   filter(is.finite(log_C))%>%
+#   filter(is.finite(log_Q))%>%
+#   left_join(., df.G2.reduced, by = c('Name'='STAID'))
+# df.OLS.top50<-df.Correlation.top50%>% # create a dataframe with OLS and sens slope intercept and slopes:
+#   group_by(Name)%>%
+#   do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+#   summarize(., OLS.I = OLS.co[1], 
+#             OLS.S = OLS.co[2])
+#   }) %>%
+#   ungroup
+# df.Sens.top50<-df.Correlation.top50%>%
+#   group_by(Name)%>%
+#   do({ Sens.co<-zyp.sen(log_C~log_Q,.)
+#   summarize(., Sen.I = Sens.co$coefficients[[1]],
+#             Sen.S= Sens.co$coefficients[[2]])
+#   }) %>%
+#   ungroup
+# df.OLS_Sens.top50<-left_join(df.OLS.top50, df.Sens.top50, by = 'Name') # merge OLS and Sens:
+# # here is where top 50 workflow differes: need to use the recalcualted df.Yield using two OLS models 
+# df.OLS_Sens.top50<-left_join(df.OLS_Sens.top50, df.Yield.2model, by = 'Name') # merge constiuent yield:
+# df.OLS_Sens.top50<-left_join(df.OLS_Sens.top50, df.G2.reduced, by = c('Name'='STAID')) # merge back the watershed characteristic data to this dataframe:
+# n_sites<-dim(df.OLS_Sens.top50)[1] # set up variable for number of sites:
+# df.cor.top50 <- df.OLS_Sens.top50 %>% # use the corrr package to correlate() and focus() on your variable of choice.
+#   correlate(method = 'spearman') %>%
+#   focus(c(OLS.I, OLS.S, Sen.I, Sen.S, Yield))%>%
+#   pivot_longer(cols= c(2:6), names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
+#   mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
+#   mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
+#   drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
+# l.cor.top50<-df.cor.top50 %>% # create a list of each CQ parameter (4: OLS and Sens slope and intercept)and format it for ggplotting:
+#   split(., df.cor.top50$CQ_Parameter)%>%
+#   lapply(., \(i) i%>% 
+#            arrange(Spearman_Correlation)%>%  
+#            slice_head(n = 7)%>%
+#            bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
+#            mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
+#            mutate(term = factor(term, levels = unique(term[order(Spearman_Correlation)])))%>%
+#            filter(!between(Spearman_Correlation, -0.25,.25))) # Order by correlation strength
+# # note*: need to add thisstep for top50 workflow:
+# # when removing CDL_WWHT_SOY_DBL_CROP from pred to keep (it is clearly not good to include when looing at the univariate plots)
+# # OLS.S and SEN.S have no correlates between -0.25 and 0.25
+# # thus I need toremove those from l.cor:
+# l.cor.top50<-purrr::keep(l.cor.top50, ~ nrow(.x) > 0)
+# plist<-lapply(l.cor.top50, \(i) i%>%ggplot(aes(x = term, y = Spearman_Correlation, color = sig_0.05)) + # make plot list using lapply:
+#                 geom_bar(stat = "identity") +
+#                 scale_color_manual(values = c("not" = "red", "sig" = "blue"),na.value = NA, drop = FALSE)+
+#                 facet_wrap('CQ_Parameter')+
+#                 ylab(paste('Spearman Correlation')) +
+#                 xlab("Watershed Attribute")+
+#                 theme(axis.text.x=element_text(angle=40,hjust=1))+
+#                 theme(legend.position="bottom"))
+# p1<-ggpubr::ggarrange(plotlist = plist, ncol=2, nrow=2, common.legend = TRUE, legend="bottom") # arrange plots:
+# p1<-annotate_figure(p1, top = text_grob(paste(ncode, "Correlated Against Gauges 2"), color = "red", face = "bold", size = 14)) # add plot title:
+# p1 # plot:
+# 
+# # look at univarite plot for AANY:
+# 
+# OLS<-l.cor.top50[[3]]%>%arrange(desc(Spearman_Correlation))
+# 
+# # make univariate plots (facets) of Y (determined in [[]]) above and predictors: 
+# # note the predictor column isturned into an ordered factor based on thespearman correlation values
+# # to makethe facet plots in order:
+# 
+# df.OLS_Sens.top50%>%
+#   select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
+#   pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
+#   drop_na(Value)%>%
+#   # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
+#   left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
+#   mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
+#   ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
+#   geom_smooth(method = 'lm')+
+#   geom_point()+
+#   # scale_x_log10(
+#   #   breaks = scales::trans_breaks("log10", function(x) 10^x),
+#   #   labels = scales::trans_format("log10", scales::math_format(10^.x))
+#   # )+
+#   # scale_y_log10(
+#   #   breaks = scales::trans_breaks("log10", function(x) 10^x),
+#   #   labels = scales::trans_format("log10", scales::math_format(10^.x))
+#   # )+
+#   facet_wrap('Type', scales = 'free')+
+#   ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
+# 
+# #
 
-df.Correlation.top50<-df.TP_CQ.top50%>%
-  rename(Name = site_no)%>%
-  select(Name, sample_dt,result_va, X_00060_00003)%>%mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-  filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))%>%
-  left_join(., df.G2.reduced, by = c('Name'='STAID'))
-df.OLS.top50<-df.Correlation.top50%>% # create a dataframe with OLS and sens slope intercept and slopes:
-  group_by(Name)%>%
-  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
-  summarize(., OLS.I = OLS.co[1], 
-            OLS.S = OLS.co[2])
-  }) %>%
-  ungroup
-df.Sens.top50<-df.Correlation.top50%>%
-  group_by(Name)%>%
-  do({ Sens.co<-zyp.sen(log_C~log_Q,.)
-  summarize(., Sen.I = Sens.co$coefficients[[1]],
-            Sen.S= Sens.co$coefficients[[2]])
-  }) %>%
-  ungroup
-df.OLS_Sens.top50<-left_join(df.OLS.top50, df.Sens.top50, by = 'Name') # merge OLS and Sens:
-# here is where top 50 workflow differes: need to use the recalcualted df.Yield using two OLS models 
-df.OLS_Sens.top50<-left_join(df.OLS_Sens.top50, df.Yield.2model, by = 'Name') # merge constiuent yield:
-df.OLS_Sens.top50<-left_join(df.OLS_Sens.top50, df.G2.reduced, by = c('Name'='STAID')) # merge back the watershed characteristic data to this dataframe:
-n_sites<-dim(df.OLS_Sens.top50)[1] # set up variable for number of sites:
-df.cor.top50 <- df.OLS_Sens.top50 %>% # use the corrr package to correlate() and focus() on your variable of choice.
-  correlate(method = 'spearman') %>%
-  focus(c(OLS.I, OLS.S, Sen.I, Sen.S, Yield))%>%
-  pivot_longer(cols= c(2:6), names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
-  mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
-  mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
-  drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
-l.cor.top50<-df.cor.top50 %>% # create a list of each CQ parameter (4: OLS and Sens slope and intercept)and format it for ggplotting:
-  split(., df.cor.top50$CQ_Parameter)%>%
-  lapply(., \(i) i%>% 
-           arrange(Spearman_Correlation)%>%  
-           slice_head(n = 7)%>%
-           bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
-           mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
-           mutate(term = factor(term, levels = unique(term[order(Spearman_Correlation)])))%>%
-           filter(!between(Spearman_Correlation, -0.25,.25))) # Order by correlation strength
-# note*: need to add thisstep for top50 workflow:
-# when removing CDL_WWHT_SOY_DBL_CROP from pred to keep (it is clearly not good to include when looing at the univariate plots)
-# OLS.S and SEN.S have no correlates between -0.25 and 0.25
-# thus I need toremove those from l.cor:
-l.cor.top50<-purrr::keep(l.cor.top50, ~ nrow(.x) > 0)
-plist<-lapply(l.cor.top50, \(i) i%>%ggplot(aes(x = term, y = Spearman_Correlation, color = sig_0.05)) + # make plot list using lapply:
-                geom_bar(stat = "identity") +
-                scale_color_manual(values = c("not" = "red", "sig" = "blue"),na.value = NA, drop = FALSE)+
-                facet_wrap('CQ_Parameter')+
-                ylab(paste('Spearman Correlation')) +
-                xlab("Watershed Attribute")+
-                theme(axis.text.x=element_text(angle=40,hjust=1))+
-                theme(legend.position="bottom"))
-p1<-ggpubr::ggarrange(plotlist = plist, ncol=2, nrow=2, common.legend = TRUE, legend="bottom") # arrange plots:
-p1<-annotate_figure(p1, top = text_grob(paste(ncode, "Correlated Against Gauges 2"), color = "red", face = "bold", size = 14)) # add plot title:
-p1 # plot:
-
-# look at univarite plot for AANY:
-
-OLS<-l.cor.top50[[3]]%>%arrange(desc(Spearman_Correlation))
-
-# make univariate plots (facets) of Y (determined in [[]]) above and predictors: 
-# note the predictor column isturned into an ordered factor based on thespearman correlation values
-# to makethe facet plots in order:
-
-df.OLS_Sens.top50%>%
-  select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
-  pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
-  drop_na(Value)%>%
-  # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
-  left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
-  mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
-  ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
-  geom_smooth(method = 'lm')+
-  geom_point()+
-  # scale_x_log10(
-  #   breaks = scales::trans_breaks("log10", function(x) 10^x),
-  #   labels = scales::trans_format("log10", scales::math_format(10^.x))
-  # )+
-  # scale_y_log10(
-  #   breaks = scales::trans_breaks("log10", function(x) 10^x),
-  #   labels = scales::trans_format("log10", scales::math_format(10^.x))
-  # )+
-  facet_wrap('Type', scales = 'free')+
-  ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
-
-#
-
-
+# end comment out
 
 
 
@@ -1286,12 +1222,26 @@ df.OLS_Sens.top50%>%
 
 # read in datalayers predictors:
 
-load('Processed_Data/df.datalayers.Rdata')
+# read in first and second pass and merge into single df:
+
+load('Processed_Data/df.datalayers.Rdata') # first pass:
+df.datalayers.FP<-df.datalayers # rename because next load overwrites with same name
+load('Processed_Data/df.datalayers.next20.Rdata') # second pass
+df.datalayers<-bind_rows(df.datalayers.FP, df.datalayers)
+
+# note that df.datalayers from second pass does not have 
+# column "Dbl_Crop_WinWht/Soybeans"
+
+# also note df.datalayers has 62 sites while df.TP_CQ (for second pass)
+# has 63 sites
+# this is not a big deal for the correlaitons because it will just omit the
+# row with NAs in all the predictor columns, but this row will need to be omitted
+# when running the MLR
 
 # as per a first run of this workflow, remove emergentwetlands, soybeans, winter wheat, grassland
 
 df.datalayers<-df.datalayers%>%
-  select(-c(R_EMERGWETNLCD06, R_GRASSNLCD06, Soybeans, Winter_Wheat, Ag.CSA_perc))%>%
+  select(-c(R_EMERGWETNLCD06, R_GRASSNLCD06, Soybeans, Winter_Wheat, `Dbl_Crop_WinWht/Soybeans`, R_WOODYWETNLCD06))%>%
   replace(is.na(.), 0)
 
 # combined the reduced predictors df with the already filtered CQ data:
@@ -1470,6 +1420,80 @@ df.OLS_Sens%>%
 
 
 
+#### Categorizing land use - need to recode to accomdate G2 and datalayers land use predictors...  ####
+
+# # note* this section should come after regular old correlations such that df.OLS_Sens has the G2 predictors:
+# 
+# # USGS criteria:
+# # Agricultural sites have >50% agricultural land and ≤5% urban land;
+# # urban sites have >25% urban and ≤25% agricultural land;
+# # undeveloped sites have ≤ 5% urban and ≤ 25% agricultural land;
+# # all other combinations of urban, agricultural, and undeveloped lands are classified as mixed
+# 
+# # initate a dataframe with the landuse values from gauges 2:
+# 
+# df.NLCD06<-distinct(df.OLS_Sens, Name, .keep_all = T)
+# 
+# # I confirmed that pasture + crops = plant:
+# 
+# (df.NLCD06$PASTURENLCD06+df.NLCD06$CROPSNLCD06)==df.NLCD06$PLANTNLCD06
+# 
+# # and that the ones that start with DEV sum up to the first DEV one.
+# 
+# # create the land use class column based on USGS critiera:
+# # adjusted thresholds:
+# 
+# df.NLCD06<-df.NLCD06%>%
+#   mutate(USGS.LU.Adjusted = case_when(.default = 'Mixed',
+#                                       PLANTNLCD06 > 30 & DEVNLCD06 <= 10 ~ 'Agriculture',
+#                                       DEVNLCD06 > 10 & PLANTNLCD06 <= 30 ~ 'Urban',
+#                                       DEVNLCD06+PLANTNLCD06 <= 10 ~ 'Undeveloped'))
+# 
+# # frequency table:
+# 
+# table(df.NLCD06$USGS.LU.Adjusted)
+# 
+# # boxplots of
+# 
+# p<-df.NLCD06%>%
+#   pivot_longer(cols = 2:5, names_to = 'CQ_parameter', values_to = 'Value')%>%
+#   ggplot(., aes(x=USGS.LU.Adjusted, y=Value, color =USGS.LU.Adjusted ))+
+#   geom_boxplot(varwidth = TRUE, alpha=0.2)+
+#   # scale_x_discrete(labels=my_xlab)+
+#   facet_wrap('CQ_parameter', scales = 'free')+
+#   stat_compare_means(method = "anova")+      # Add global p-value # , label.y = max(df.datalayers$Value) ???
+#   stat_compare_means(label = "p.signif", method = "t.test",
+#                      ref.group = "0.5") +
+#   ggtitle('Adjusted USGS Thresholds using Aggregated Data Layers')
+# 
+# # p
+# 
+# #
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1482,6 +1506,8 @@ df.OLS_Sens%>%
 
 
 #### Grouping CQ curves (stationary, mobilization, dilutionary, complex) ####
+
+# cant run next few section until categorizing landuse works (need dfNLCD...)
 
 # create a list of dataframes for each sites CQ observations:
 
@@ -1872,7 +1898,8 @@ m.list<-list()
 
 for (i in 1:5){
   
-  df<-l.cor.MLR.full[[i]]
+  df<-l.cor.MLR.full[[i]]%>%
+    drop_na(CSA_perc) # in the second pass, this is needed to remove the 1 site that did not have soils data nd did not carry over into df.datalayers (but is in df.TP_CQ)
   
   library(caret)
   

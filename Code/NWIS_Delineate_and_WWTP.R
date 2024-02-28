@@ -206,14 +206,12 @@ temp<-df.sf.NWIS%>%
 
 # the second pass sites are:
 
-load('Processed_Data/TP.68.Rdata')
-
-# note that 68 is meaning less..i changed the filter because I was wrong the first time
+load('Processed_Data/TP.SP.Rdata')
 
 # this is the metadata for these sites:
 
 df.NWIS.TP_site_metadata<-read.csv("Raw_Data/df.NWIS.TP_site_metadata.csv", colClasses = c(site_no = "character"))%>%
-  filter(site_no %in% df.TP_CQ.68$site_no)
+  filter(site_no %in% df.TP_CQ.SP$site_no)
 
 # there are 42 sites from the previous section that have good delineations
 # thus there are 68-42=26 sites that need delineations:
@@ -249,10 +247,10 @@ load('Processed_Data/NWIS.TP.SS_WS_sf.21.Rdata')
 setdiff(temp$site_no, df.sf.NWIS.21$Name) # > "04226000" "04264331"
 
 # there are two sites that did not work in the transition to sf.df:
-# "04226000" is good to go, but "04264331" is the st. lawrence river, so excluding that one:
+# "04226000" is good to go to streamstats for, but "04264331" is the st. lawrence river, so excluding that one:
 
-# then I used the streamstats webpage to get the watersheds for these
-# reading them in:
+# then I used the streamstats webpage to get the watersheds for that site.
+# reading in shapefile:
 
 WS_04226000<-st_read('Raw_Data/04226000_SS_online_WS_shapefile/globalwatershed.shp')%>%mutate(Name = '04226000')
 
@@ -298,35 +296,6 @@ mapview(temp)
 # 2nd one: 0424015305
 
 # it is only 5% off, the shape looks right as per comparing to USGS gauge page. So we are all good!
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#### Merging watershed shapefile sf.df's ####
 
 # now I can merge the 42 and 20 shapefiles:
 

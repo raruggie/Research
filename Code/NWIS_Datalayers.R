@@ -1469,7 +1469,7 @@ load('Processed_Data/df.FRAGUN_BASIN.next20.Rdata')
 
 # convert to dataframe:
 
-df.CSA<-tibble::enframe(l.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
+# df.CSA<-tibble::enframe(l.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
 
 # look at map colored by %CSA:
 

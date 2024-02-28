@@ -27,8 +27,13 @@ NWIS_Datalayers.R file:
 - heatmap of the difference between early and recent CDLs
 - recreating the GAGES II predictors: 
  - make a table of the predictors (including adding descirptions for the predictors I made myself by summing some of the GAGES ones (e.g. RIP)
- - land use: using plain CDL for GAGES II CDL and reclassified CDL for GAGES NLCD 06
+ - land use: using CDL for GAGES II CDL and NLCD (01, 06, 2016) for GAGES NLCD
  - elevation: NED
+ - soils: ssurgo
+ - ripiran buffer: land use + NHD
+ - CSA - soils, slope, landuse
+ - Ag CSA - "          "
+ - 
 
 NWIS_Delineate_and_WWTP.R file:
 - delinate watersheds using SS API
