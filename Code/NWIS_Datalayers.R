@@ -1604,7 +1604,6 @@ load('Processed_Data/df.Ag.CSA.next20.Rdata')
 
 
 
-
 ####~~~~Finalize DataLayers First Pass ~~~~####
 
 # # the follwoing dataframes contain predictors for the sites:
@@ -1699,6 +1698,153 @@ save(df.datalayers, file = 'Processed_Data/df.datalayers.next20.Rdata')
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### WWTP Processed ####
+
+# combines FP and SP:
+
+# read in WWTP processed excel sheets and merge into 1:
+
+WWTP.FP.processed <- read.csv("Processed_Data/WWTP.FP.processed.csv")%>%
+  rename(temp=11)%>%
+  mutate(long = substring(geometry, first = 3),
+         lat = sub("\\)$", "", temp))%>%
+  st_as_sf(., coords = c("long", "lat"), crs = 4326)
+
+WWTP.SP.processed <- read.csv("Processed_Data/WWTP.SP.processed.csv")%>%
+  rename(temp=11)%>%
+  mutate(long = substring(geometry, first = 3),
+         lat = sub("\\)$", "", temp))%>%
+  st_as_sf(., coords = c("long", "lat"), crs = 4326)
+
+# Combine the data frames using rbind
+
+l.wwtp <- mget(ls(pattern = '^WWTP'))
+names(l.wwtp[[2]])<-names(l.wwtp[[1]]) # names of the SP file are different for some columns but the order of columns is same
+df.WWTP <- bind_rows(l.wwtp)
+
+# look at map:
+
+# mapview(df.WWTP, zcol = 'Discharge..mgd.')
+
+# sum WWTP discharge for each watershed: to do this:
+
+# find intersection of WWTP and watershed shapefile:
+
+l.WWTP.in.DA<-st_intersects(df.sf.NWIS.62, df.WWTP)
+
+# set list names:
+
+names(l.WWTP.in.DA)<-df.sf.NWIS.62$Name
+
+# convert from list to df:
+
+df.contains<-enframe(l.WWTP.in.DA)
+
+# create new column to append into:
+
+df.contains$Sum.WWTP.Q<-NA
+
+# loop through the resulting dataframe and pull out and sum 
+# the resulting WWTP discharges for the watershed:
+
+i<-21
+
+for (i in seq_along(df.contains$value)){
+  
+  # set new for each loop (proably dont have to do this because of else statement):
+  
+  sum.daily.discharges<-NA
+  
+  # each row in df.contains$value is a list, and the first element of the list is a vector of the rows in df.WWTP that intersect the watershed. so setting that numeric vector to a variable called pull:
+  
+  pull<-as.numeric(df.contains$value[i][[1]])
+  
+  # use if else to set the value of the sum of daily discharges:
+  
+  if (length(pull) != 0){
+    
+    sum.daily.discharges<-sum(as.numeric(df.WWTP$Discharge..mgd.[pull]), na.rm = T)*1.8581441079018
+    
+  } else { sum.daily.discharges<-0 }
+  
+  # set the value in the resulting df:
+  
+  df.contains$Sum.WWTP.Q[i]<-sum.daily.discharges
+  
+}
+
+# reformat df.contains:
+
+df.contains<-df.contains%>%
+  mutate(Sum.WWTP.Q=round(Sum.WWTP.Q,4))%>%
+  rename(Name=name)
+
+# # lets check one:
+# 
+# i<-21
+# 
+# temp<-df.sf.NWIS.62$geometry[i]
+# 
+# mapview(temp, color = 'red')+mapview(df.WWTP) #+mapview(nhd)
+# 
+# pull<-as.numeric(df.contains$value[i][[1]])
+# 
+# length(pull)
+# 
+# as.numeric(df.WWTP$Discharge..mgd.[pull])
+# 
+# sum.daily.discharges<-sum(as.numeric(df.WWTP$Discharge..mgd.[pull]), na.rm = T)
+# 
+# # looks good
+
+# now calcualte the daily average discharge for each site. to do this:
+
+# read in df of daily discharges for each site:
+
+df.NWIS.Q<-read.csv("C:/PhD/CQ/Raw_Data/df.NWIS.Q.csv", colClasses = c(site_no = "character"))
+
+# filter to the sites used (FP and SP) and calcualted mean daily discharge:
+
+df.mean.daily.Q<-df.NWIS.Q%>%
+  filter(site_no %in% df.sf.NWIS.62$Name)%>%
+  drop_na(X_00060_00003)%>%
+  group_by(site_no)%>%
+  summarize(mean.daily.Q = mean(X_00060_00003))%>%
+  rename(Name=site_no)
+
+# left join the WWTP discharges and calcualte fraction of mean daily flow as WWTP discharge:
+
+df.WWTP<-left_join(df.mean.daily.Q, df.contains%>%select(Name, Sum.WWTP.Q), by = 'Name')%>%
+  mutate(WWTP.fraction=round(Sum.WWTP.Q/mean.daily.Q,3))
+
+# save:
+
+save(df.WWTP, file = 'Processed_Data/df.WWTP.Rdata')
+
+#
 
 
 

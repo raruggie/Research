@@ -1229,6 +1229,12 @@ df.datalayers.FP<-df.datalayers # rename because next load overwrites with same 
 load('Processed_Data/df.datalayers.next20.Rdata') # second pass
 df.datalayers<-bind_rows(df.datalayers.FP, df.datalayers)
 
+# read in df.WWTP (not FP or SP specific rn):
+
+load('Processed_Data/df.WWTP.Rdata')
+
+df.datalayers<-left_join(df.datalayers, df.WWTP, by = 'Name')
+
 # note that df.datalayers from second pass does not have 
 # column "Dbl_Crop_WinWht/Soybeans"
 
@@ -1928,6 +1934,12 @@ for (i in 1:5){
   # get df of just the predictors in this model:
   
   pred<-names(coef(step.model$finalModel, as.numeric(step.model$bestTune)))[-1]
+  
+  # remove potential backticks:
+  
+  pred<-gsub("`", "", pred)
+  
+  # select down df:
   
   df.2<-df%>%select(term, pred)
   
