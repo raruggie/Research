@@ -501,11 +501,13 @@ fun.SURRGO_HSG.already_downloaded<-function(site_no, sf.df){
 }
 
 
-# function to calcualte 100 and 800 meter ripiran buffer percent land use:
+# function to calculate 100 and 800 meter riparian buffer percent land use:
 
-# i<-39
+i<-19
 
-fun.NHD.RIP.buffers<-function(i, df.site_metadata){
+# mapview(df.sf.NWIS[i,])
+
+fun.NHD.RIP.buffers<-function(i, df.site_metadata, save.flowline = TRUE){
   
   print(i)
   
@@ -530,7 +532,7 @@ fun.NHD.RIP.buffers<-function(i, df.site_metadata){
   subset <- subset_nhdplus(comids = as.integer(flowline$UT$nhdplus_comid),
                            # output_file = subset_file,
                            nhdplus_data = "download",
-                           flowline_only = TRUE,
+                           flowline_only = TRUE, # if false you will get catchment + waterbody
                            # overwrite = TRUE,
                            return_data = TRUE)
 
@@ -543,6 +545,15 @@ fun.NHD.RIP.buffers<-function(i, df.site_metadata){
   # flowline <- sf::read_sf(subset_file, "NHDFlowline_Network")
   # catchment <- sf::read_sf(subset_file, "CatchmentSP")
   # waterbody <- sf::read_sf(subset_file, "NHDWaterbody")
+  
+  # save sites flowline to file:
+  
+  if(save.flowline){
+    
+    save(flowline, file = paste('Downloaded_Data/NHD_flowlines/flowline_', df.sf.NWIS$Name[i], '.Rdata'))
+    
+    print('saved flowline as sf')
+  } else {print('flow saving turned off')}
   
   ## now plot:
   
@@ -826,6 +837,10 @@ fun.CSA_watershed_percent<-function(i, WA){
     CSA.map<-as.factor(CSA.map)
     levels(CSA.map)<-data.frame(ID = 0:1, CSA = c('non-CSA', 'CSA'))
     
+    # save CSA map at this stage:
+    
+    writeRaster(CSA.map, file = paste0('Processed_Data/CSA_maps/CSA_map_', df.sf.NWIS$Name[i], '.tif'), overwrite=TRUE)
+    
     # sum up CSA area for watershed:
     
     df.CSA<-freq(CSA.map)
@@ -837,6 +852,61 @@ fun.CSA_watershed_percent<-function(i, WA){
     percent.CSA<-df.CSA$perc[df.CSA$value=='CSA']
     
     return(percent.CSA)
+    
+  },error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
+  
+  
+}
+
+# function to determine percent riparian buffer CSA in watershed:
+
+fun.Riparian_CSA<-function(i, WA){
+  
+  print(i)
+  
+  tryCatch({
+    
+    mapview(WA)
+    
+    # Step 1: load in sites flowline:
+    
+    load(paste0('Downloaded_Data/NHD_flowlines/flowline_', df.sf.NWIS$Name[i], '.Rdata'))
+    
+    # Step 2: load in sites CSA map:
+    
+    CSA.map<-rast(paste0('Processed_Data/CSA_maps/CSA_map_', df.sf.NWIS$Name[i], '.tif'))
+    
+    # Step 3: crop CSA map to ripiran buffer: todothis:
+    
+    # follow buffer workflow in fun.NHD.RIP.buffers:
+    
+    flowline1<-flowline%>%filter(ftype == 'StreamRiver')
+    buffer.100<-st_buffer(flowline1, 100)%>%st_union()
+    buffer.800<-st_buffer(flowline1, 800)%>%st_union()
+    vect.buffer.100<-vect(buffer.100) 
+    vect.buffer.800<-vect(buffer.800)
+    vect.buffer.100.proj<-terra::project(vect.buffer.100, crs(CSA.map))
+    vect.buffer.800.proj<-terra::project(vect.buffer.800, crs(CSA.map))
+    mapview(WA)+mapview(flowline)
+    
+    # crop CSA.map to buffer:
+    
+    CSA.map.100<-crop(CSA.map, vect.buffer.100.proj, mask=T)
+    CSA.map.800<-crop(CSA.map, vect.buffer.800.proj, mask=T)
+    
+    # plot(CSA.map.100)
+    # plot(CSA.map.800)
+    
+    # Step 4 extract freq:
+    
+    df.100<-freq(CSA.map.100)
+    df.100$perc <- round(100 * df.100$count / sum(df.100$count), 10)
+    
+    df.800<-freq(CSA.map.800)
+    df.800$perc <- round(100 * df.800$count / sum(df.800$count), 10)
+    
+    
+    #
     
   },error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
   
