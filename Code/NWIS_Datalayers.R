@@ -556,9 +556,9 @@ df.sf.NWIS<-df.sf.NWIS.62%>%filter(!Name %in% df.sf.NWIS$Name)
 
 # second pass:
 
-names.2001<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2001_SpatRaster_for', df.sf.NWIS$Name, '.next20.tif')
-names.2006<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2006_SpatRaster_for', df.sf.NWIS$Name, '.next20.tif')
-names.2016<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.sf.NWIS$Name, '.next20.tif')
+# names.2001<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2001_SpatRaster_for', df.sf.NWIS$Name, '.next20.tif')
+# names.2006<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2006_SpatRaster_for', df.sf.NWIS$Name, '.next20.tif')
+# names.2016<-paste0('Downloaded_Data/NLCD_rasters/NLCD_2016_SpatRaster_for', df.sf.NWIS$Name, '.next20.tif')
 
 # load SpatRasters back in:
 
@@ -1290,12 +1290,12 @@ library(sf)
 
 # read in NWIS site outlet corrdinate:
 
-df.NWIS.TP_site_metadata<-read.csv("Raw_Data/df.NWIS.TP_site_metadata.csv", colClasses = c(site_no = "character"))%>%
-  filter(site_no %in% df.sf.NWIS$Name)
+# df.NWIS.TP_site_metadata<-read.csv("Raw_Data/df.NWIS.TP_site_metadata.csv", colClasses = c(site_no = "character"))%>%
+#   filter(site_no %in% df.sf.NWIS$Name)
 
 # order df to match that of names.2006 (from df.sf.NWIS) for use in function below:
 
-df.site_metadata<-df.NWIS.TP_site_metadata[match(df.sf.NWIS$Name, df.NWIS.TP_site_metadata$site_no),]
+# df.site_metadata<-df.NWIS.TP_site_metadata[match(df.sf.NWIS$Name, df.NWIS.TP_site_metadata$site_no),]
 
 # use function to get 100 and 800 meter rip buffer percent dev, plant, and forest:
 
@@ -1419,7 +1419,7 @@ library(landscapemetrics)
 
 # second pass:
 
-load('Processed_Data/df.FRAGUN_BASIN.next20.Rdata')
+# load('Processed_Data/df.FRAGUN_BASIN.next20.Rdata')
 
 # **Note** only run for first pass:
 
@@ -1467,7 +1467,7 @@ load('Processed_Data/df.FRAGUN_BASIN.next20.Rdata')
 
 # use function in lappy to calcualte watershed percent CSA:
 
-l.CSA<-sapply(seq_along(df.sf.NWIS$Name), \(i) fun.CSA_watershed_percent(i, df.sf.NWIS[i,]))
+# l.CSA<-sapply(seq_along(df.sf.NWIS$Name), \(i) fun.CSA_watershed_percent(i, df.sf.NWIS[i,]))
 
 # set names:
 
@@ -1507,7 +1507,7 @@ l.CSA<-sapply(seq_along(df.sf.NWIS$Name), \(i) fun.CSA_watershed_percent(i, df.s
 
 # second pass:
 
-load('Processed_Data/df.CSA.next20.Rdata')
+# load('Processed_Data/df.CSA.next20.Rdata')
 
 #
 
@@ -1587,9 +1587,165 @@ load('Processed_Data/df.CSA.next20.Rdata')
 
 # second pass:
 
-load('Processed_Data/df.Ag.CSA.next20.Rdata')
+# load('Processed_Data/df.Ag.CSA.next20.Rdata')
 
 #
+
+
+#### ~~ Non-FP/SP specific Predictors (i.e. done with the full set at once) ~~ ####
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### WWTP Fraction of gauge mean daily discharge ####
+
+# # combines FP and SP:
+# 
+# # read in WWTP processed excel sheets and merge into 1:
+# 
+# WWTP.FP.processed <- read.csv("Processed_Data/WWTP.FP.processed.csv")%>%
+#   rename(temp=11)%>%
+#   mutate(long = substring(geometry, first = 3),
+#          lat = sub("\\)$", "", temp))%>%
+#   st_as_sf(., coords = c("long", "lat"), crs = 4326)
+# 
+# WWTP.SP.processed <- read.csv("Processed_Data/WWTP.SP.processed.csv")%>%
+#   rename(temp=11)%>%
+#   mutate(long = substring(geometry, first = 3),
+#          lat = sub("\\)$", "", temp))%>%
+#   st_as_sf(., coords = c("long", "lat"), crs = 4326)
+# 
+# # Combine the data frames using rbind
+# 
+# l.wwtp <- mget(ls(pattern = '^WWTP'))
+# names(l.wwtp[[2]])<-names(l.wwtp[[1]]) # names of the SP file are different for some columns but the order of columns is same
+# df.WWTP <- bind_rows(l.wwtp)
+# 
+# # look at map:
+# 
+# # mapview(df.WWTP, zcol = 'Discharge..mgd.')
+# 
+# # sum WWTP discharge for each watershed: to do this:
+# 
+# # find intersection of WWTP and watershed shapefile:
+# 
+# l.WWTP.in.DA<-st_intersects(df.sf.NWIS.62, df.WWTP)
+# 
+# # set list names:
+# 
+# names(l.WWTP.in.DA)<-df.sf.NWIS.62$Name
+# 
+# # convert from list to df:
+# 
+# df.contains<-enframe(l.WWTP.in.DA)
+# 
+# # create new column to append into:
+# 
+# df.contains$Sum.WWTP.Q<-NA
+# 
+# # loop through the resulting dataframe and pull out and sum 
+# # the resulting WWTP discharges for the watershed:
+# 
+# i<-21
+# 
+# for (i in seq_along(df.contains$value)){
+#   
+#   # set new for each loop (proably dont have to do this because of else statement):
+#   
+#   sum.daily.discharges<-NA
+#   
+#   # each row in df.contains$value is a list, and the first element of the list is a vector of the rows in df.WWTP that intersect the watershed. so setting that numeric vector to a variable called pull:
+#   
+#   pull<-as.numeric(df.contains$value[i][[1]])
+#   
+#   # use if else to set the value of the sum of daily discharges:
+#   
+#   if (length(pull) != 0){
+#     
+#     sum.daily.discharges<-sum(as.numeric(df.WWTP$Discharge..mgd.[pull]), na.rm = T)*1.8581441079018
+#     
+#   } else { sum.daily.discharges<-0 }
+#   
+#   # set the value in the resulting df:
+#   
+#   df.contains$Sum.WWTP.Q[i]<-sum.daily.discharges
+#   
+# }
+# 
+# # reformat df.contains:
+# 
+# df.contains<-df.contains%>%
+#   mutate(Sum.WWTP.Q=round(Sum.WWTP.Q,4))%>%
+#   rename(Name=name)
+# 
+# # # lets check one:
+# # 
+# # i<-21
+# # 
+# # temp<-df.sf.NWIS.62$geometry[i]
+# # 
+# # mapview(temp, color = 'red')+mapview(df.WWTP) #+mapview(nhd)
+# # 
+# # pull<-as.numeric(df.contains$value[i][[1]])
+# # 
+# # length(pull)
+# # 
+# # as.numeric(df.WWTP$Discharge..mgd.[pull])
+# # 
+# # sum.daily.discharges<-sum(as.numeric(df.WWTP$Discharge..mgd.[pull]), na.rm = T)
+# # 
+# # # looks good
+# 
+# # now calcualte the daily average discharge for each site. to do this:
+# 
+# # read in df of daily discharges for each site:
+# 
+# df.NWIS.Q<-read.csv("C:/PhD/CQ/Raw_Data/df.NWIS.Q.csv", colClasses = c(site_no = "character"))
+# 
+# # filter to the sites used (FP and SP) and calcualted mean daily discharge:
+# 
+# df.mean.daily.Q<-df.NWIS.Q%>%
+#   filter(site_no %in% df.sf.NWIS.62$Name)%>%
+#   drop_na(X_00060_00003)%>%
+#   group_by(site_no)%>%
+#   summarize(mean.daily.Q = mean(X_00060_00003))%>%
+#   rename(Name=site_no)
+# 
+# # left join the WWTP discharges and calcualte fraction of mean daily flow as WWTP discharge:
+# 
+# df.WWTP<-left_join(df.mean.daily.Q, df.contains%>%select(Name, Sum.WWTP.Q), by = 'Name')%>%
+#   mutate(WWTP.fraction=round(Sum.WWTP.Q/mean.daily.Q,3))
+# 
+# # save:
+# 
+# save(df.WWTP, file = 'Processed_Data/df.WWTP.Rdata')
+# 
+# #
+
 
 
 
@@ -1621,51 +1777,53 @@ load('Processed_Data/df.Ag.CSA.next20.Rdata')
 
 #### Riparian Buffer in CSA ####
 
-# # use function in lappy to calcualte watershed percent CSA:
-# 
-# # l.CSA<-sapply(seq_along(df.sf.NWIS$Name), \(i) fun.CSA_watershed_percent(i, df.sf.NWIS[i,]))
-# 
-# # set names:
-# 
-# # names(l.CSA)<-df.sf.NWIS$Name
-# 
-# # convert to dataframe:
-# 
-# # df.CSA<-tibble::enframe(l.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
-# 
-# # look at map colored by %CSA:
-# 
-# # temp<-left_join(df.sf.NWIS, df.CSA, by = 'Name')%>%filter(is.na(value))
-# # mapview(temp, zcol = 'value')
-# 
-# # there are three sites in the catskills (small) with NA for percent CSA (proably all forest land)
-# # so just replace NA with zero:
-# # **Note** only for second pass does site at entry 13 need to be NA for since there is no soils data
-# 
-# # df.CSA<-df.CSA%>%replace(is.na(.), 0)
-# # df.CSA$value[13]<-NA
-# 
-# # save:
-# 
-# # first pass:
-# 
-# # save(df.CSA, file = 'Processed_Data/df.CSA.Rdata')
-# 
-# # second pass:
-# 
-# # save(df.CSA, file = 'Processed_Data/df.CSA.next20.Rdata')
-# 
-# # load:
-# 
-# # first pass:
-# 
-# # load('Processed_Data/df.CSA.Rdata')
-# 
-# # second pass:
-# 
-# load('Processed_Data/df.CSA.next20.Rdata')
-# 
-# #
+# *note*: doing this for FP and second pass df at the same time:
+
+# use function in lappy to calculate ripirairn percent CSA:
+
+l.RIP.CSA<-sapply(seq_along(df.sf.NWIS.62$Name), \(i) fun.Riparian_CSA(i, df.sf.NWIS.62))
+
+# set names:
+
+# names(l.RIP.CSA)<-df.sf.NWIS$Name
+
+# convert to dataframe:
+
+# df.CSA<-tibble::enframe(l.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
+
+# look at map colored by %CSA:
+
+# temp<-left_join(df.sf.NWIS, df.CSA, by = 'Name')%>%filter(is.na(value))
+# mapview(temp, zcol = 'value')
+
+# there are three sites in the catskills (small) with NA for percent CSA (proably all forest land)
+# so just replace NA with zero:
+# **Note** only for second pass does site at entry 13 need to be NA for since there is no soils data
+
+# df.CSA<-df.CSA%>%replace(is.na(.), 0)
+# df.CSA$value[13]<-NA
+
+# save:
+
+# first pass:
+
+# save(df.CSA, file = 'Processed_Data/df.CSA.Rdata')
+
+# second pass:
+
+# save(df.CSA, file = 'Processed_Data/df.CSA.next20.Rdata')
+
+# load:
+
+# first pass:
+
+# load('Processed_Data/df.CSA.Rdata')
+
+# second pass:
+
+load('Processed_Data/df.CSA.next20.Rdata')
+
+#
 
 
 
@@ -1809,130 +1967,7 @@ save(df.datalayers, file = 'Processed_Data/df.datalayers.next20.Rdata')
 
 
 
-#### WWTP Fraction of gauge mean daily discharge ####
 
-# combines FP and SP:
-
-# read in WWTP processed excel sheets and merge into 1:
-
-WWTP.FP.processed <- read.csv("Processed_Data/WWTP.FP.processed.csv")%>%
-  rename(temp=11)%>%
-  mutate(long = substring(geometry, first = 3),
-         lat = sub("\\)$", "", temp))%>%
-  st_as_sf(., coords = c("long", "lat"), crs = 4326)
-
-WWTP.SP.processed <- read.csv("Processed_Data/WWTP.SP.processed.csv")%>%
-  rename(temp=11)%>%
-  mutate(long = substring(geometry, first = 3),
-         lat = sub("\\)$", "", temp))%>%
-  st_as_sf(., coords = c("long", "lat"), crs = 4326)
-
-# Combine the data frames using rbind
-
-l.wwtp <- mget(ls(pattern = '^WWTP'))
-names(l.wwtp[[2]])<-names(l.wwtp[[1]]) # names of the SP file are different for some columns but the order of columns is same
-df.WWTP <- bind_rows(l.wwtp)
-
-# look at map:
-
-# mapview(df.WWTP, zcol = 'Discharge..mgd.')
-
-# sum WWTP discharge for each watershed: to do this:
-
-# find intersection of WWTP and watershed shapefile:
-
-l.WWTP.in.DA<-st_intersects(df.sf.NWIS.62, df.WWTP)
-
-# set list names:
-
-names(l.WWTP.in.DA)<-df.sf.NWIS.62$Name
-
-# convert from list to df:
-
-df.contains<-enframe(l.WWTP.in.DA)
-
-# create new column to append into:
-
-df.contains$Sum.WWTP.Q<-NA
-
-# loop through the resulting dataframe and pull out and sum 
-# the resulting WWTP discharges for the watershed:
-
-i<-21
-
-for (i in seq_along(df.contains$value)){
-  
-  # set new for each loop (proably dont have to do this because of else statement):
-  
-  sum.daily.discharges<-NA
-  
-  # each row in df.contains$value is a list, and the first element of the list is a vector of the rows in df.WWTP that intersect the watershed. so setting that numeric vector to a variable called pull:
-  
-  pull<-as.numeric(df.contains$value[i][[1]])
-  
-  # use if else to set the value of the sum of daily discharges:
-  
-  if (length(pull) != 0){
-    
-    sum.daily.discharges<-sum(as.numeric(df.WWTP$Discharge..mgd.[pull]), na.rm = T)*1.8581441079018
-    
-  } else { sum.daily.discharges<-0 }
-  
-  # set the value in the resulting df:
-  
-  df.contains$Sum.WWTP.Q[i]<-sum.daily.discharges
-  
-}
-
-# reformat df.contains:
-
-df.contains<-df.contains%>%
-  mutate(Sum.WWTP.Q=round(Sum.WWTP.Q,4))%>%
-  rename(Name=name)
-
-# # lets check one:
-# 
-# i<-21
-# 
-# temp<-df.sf.NWIS.62$geometry[i]
-# 
-# mapview(temp, color = 'red')+mapview(df.WWTP) #+mapview(nhd)
-# 
-# pull<-as.numeric(df.contains$value[i][[1]])
-# 
-# length(pull)
-# 
-# as.numeric(df.WWTP$Discharge..mgd.[pull])
-# 
-# sum.daily.discharges<-sum(as.numeric(df.WWTP$Discharge..mgd.[pull]), na.rm = T)
-# 
-# # looks good
-
-# now calcualte the daily average discharge for each site. to do this:
-
-# read in df of daily discharges for each site:
-
-df.NWIS.Q<-read.csv("C:/PhD/CQ/Raw_Data/df.NWIS.Q.csv", colClasses = c(site_no = "character"))
-
-# filter to the sites used (FP and SP) and calcualted mean daily discharge:
-
-df.mean.daily.Q<-df.NWIS.Q%>%
-  filter(site_no %in% df.sf.NWIS.62$Name)%>%
-  drop_na(X_00060_00003)%>%
-  group_by(site_no)%>%
-  summarize(mean.daily.Q = mean(X_00060_00003))%>%
-  rename(Name=site_no)
-
-# left join the WWTP discharges and calcualte fraction of mean daily flow as WWTP discharge:
-
-df.WWTP<-left_join(df.mean.daily.Q, df.contains%>%select(Name, Sum.WWTP.Q), by = 'Name')%>%
-  mutate(WWTP.fraction=round(Sum.WWTP.Q/mean.daily.Q,3))
-
-# save:
-
-save(df.WWTP, file = 'Processed_Data/df.WWTP.Rdata')
-
-#
 
 
 
