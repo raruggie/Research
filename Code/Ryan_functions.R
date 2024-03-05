@@ -860,7 +860,7 @@ fun.CSA_watershed_percent<-function(i, WA){
 
 # function to determine percent riparian buffer CSA in watershed:
 
-i<-5
+i<-8
 
 # sf.df<-df.sf.NWIS.62
 
@@ -875,7 +875,7 @@ fun.Riparian_CSA<-function(i, sf.df){
   
   tryCatch({
     
-    mapview(WA)
+    # mapview(WA)
     
     # Step 1: load in sites flowline:
     
@@ -885,7 +885,7 @@ fun.Riparian_CSA<-function(i, sf.df){
     
     CSA.map<-rast(paste0('Processed_Data/CSA_maps/CSA_map_', sf.df$Name[i], '.tif'))
     
-    # Step 3: crop CSA map to ripiran buffer: todothis:
+    # Step 3: extract CSA map over ripiran buffer: todothis:
     
     # follow buffer workflow in fun.NHD.RIP.buffers:
     
@@ -899,31 +899,20 @@ fun.Riparian_CSA<-function(i, sf.df){
     
     # mapview(WA)+mapview(flowline)
     
-    # crop CSA.map to buffer:
+    # extract CSA.map over buffer:
     
-    CSA.map.100<-crop(CSA.map, vect.buffer.100.proj, mask=T)
-    CSA.map.800<-crop(CSA.map, vect.buffer.800.proj, mask=T)
+    CSA.map.100<-terra::extract(CSA.map, vect.buffer.100.proj, ID=FALSE)%>%drop_na(CSA)
+    CSA.map.800<-terra::extract(CSA.map, vect.buffer.800.proj, ID=FALSE)%>%drop_na(CSA)
     
-    plot(CSA.map.100)
-    plot(vect.buffer.800.proj, add=T)
-    plot(CSA.map.800)
+    # calculate proportion of CSA pixels:
     
-    # Step 4 extract freq:
+    v.100<-(sum(CSA.map.100$CSA=='CSA')/length(CSA.map.100$CSA))*100
+    v.800<-(sum(CSA.map.800$CSA=='CSA')/length(CSA.map.800$CSA))*100
+
+    # create df to return from function:
     
-    df.100<-freq(CSA.map.100)
-    df.100$perc <- round(100 * df.100$count / sum(df.100$count), 10)
-    
-    df.800<-freq(CSA.map.800)
-    df.800$perc <- round(100 * df.800$count / sum(df.800$count), 10)
-    
-    # Step 5: create df to return: to do this:
-    
-    # if the site is 100% non-CSA, then there will be no location in df.100/df.800 where value == CSA:
-    
-    if (dim(df.100)[1] >1){
-      df.RIP.CSA<-data.frame(Name = WA$Name, RIP.CSA.100 = df.100$perc[df.100$value=='CSA'], RIP.CSA.800 = df.800$perc[df.800$value=='CSA'])
-    } else {df.RIP.CSA<-data.frame(Name = WA$Name, RIP.CSA.100 = 0, RIP.CSA.800 = 0)}
-    
+    df.RIP.CSA<-data.frame(Name = WA$Name, RIP.CSA.100 = v.100, RIP.CSA.800 = v.800)
+
     # return:
     
     return(df.RIP.CSA)

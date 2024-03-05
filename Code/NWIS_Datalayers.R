@@ -1785,43 +1785,24 @@ l.RIP.CSA<-sapply(seq_along(df.sf.NWIS.62$Name), \(i) fun.Riparian_CSA(i, df.sf.
 
 # set names:
 
-# names(l.RIP.CSA)<-df.sf.NWIS$Name
+names(l.RIP.CSA)<-df.sf.NWIS.62$Name
 
 # convert to dataframe:
 
-# df.CSA<-tibble::enframe(l.CSA)%>%dplyr::mutate(value = as.numeric(purrr::map_chr(value, toString)))%>%rename(Name = 1)
+df.RIP.CSA<-bind_rows(l.RIP.CSA)
 
-# look at map colored by %CSA:
+# look at map colored by %RIP CSA:
 
-# temp<-left_join(df.sf.NWIS, df.CSA, by = 'Name')%>%filter(is.na(value))
-# mapview(temp, zcol = 'value')
-
-# there are three sites in the catskills (small) with NA for percent CSA (proably all forest land)
-# so just replace NA with zero:
-# **Note** only for second pass does site at entry 13 need to be NA for since there is no soils data
-
-# df.CSA<-df.CSA%>%replace(is.na(.), 0)
-# df.CSA$value[13]<-NA
+temp<-left_join(df.sf.NWIS.62, df.RIP.CSA, by = 'Name')
+mapview(temp, zcol = 'RIP.CSA.100')
 
 # save:
 
-# first pass:
-
-# save(df.CSA, file = 'Processed_Data/df.CSA.Rdata')
-
-# second pass:
-
-# save(df.CSA, file = 'Processed_Data/df.CSA.next20.Rdata')
+save(df.RIP.CSA, file = 'Processed_Data/df.RIP.CSA.Rdata')
 
 # load:
 
-# first pass:
-
-# load('Processed_Data/df.CSA.Rdata')
-
-# second pass:
-
-load('Processed_Data/df.CSA.next20.Rdata')
+load('Processed_Data/df.RIP.CSA.Rdata')
 
 #
 
