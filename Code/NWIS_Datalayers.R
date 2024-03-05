@@ -1592,7 +1592,41 @@ library(landscapemetrics)
 #
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### ~~ Non-FP/SP specific Predictors (i.e. done with the full set at once) ~~ ####
+
+
+
+
+
 
 
 
@@ -1781,34 +1815,82 @@ library(landscapemetrics)
 
 # use function in lappy to calculate ripirairn percent CSA:
 
-l.RIP.CSA<-sapply(seq_along(df.sf.NWIS.62$Name), \(i) fun.Riparian_CSA(i, df.sf.NWIS.62))
+# l.RIP.CSA<-sapply(seq_along(df.sf.NWIS.62$Name), \(i) fun.Riparian_CSA(i, df.sf.NWIS.62))
 
 # set names:
 
-names(l.RIP.CSA)<-df.sf.NWIS.62$Name
+# names(l.RIP.CSA)<-df.sf.NWIS.62$Name
 
 # convert to dataframe:
 
-df.RIP.CSA<-bind_rows(l.RIP.CSA)
+# df.RIP.CSA<-bind_rows(l.RIP.CSA)
 
 # look at map colored by %RIP CSA:
 
-temp<-left_join(df.sf.NWIS.62, df.RIP.CSA, by = 'Name')
-mapview(temp, zcol = 'RIP.CSA.100')
+# temp<-left_join(df.sf.NWIS.62, df.RIP.CSA, by = 'Name')
+# mapview(temp, zcol = 'RIP.CSA.100')
 
 # save:
 
-save(df.RIP.CSA, file = 'Processed_Data/df.RIP.CSA.Rdata')
-
-# load:
-
-load('Processed_Data/df.RIP.CSA.Rdata')
+# save(df.RIP.CSA, file = 'Processed_Data/df.RIP.CSA.Rdata')
 
 #
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Baseflow Index ####
+
+# remotes::install_github("USGS-R/EflowStats")
+# install.packages("lfstat", repos="http://R-Forge.R-project.org")
+library(EflowStats)
+
+# # read in daily flows for NWIS sites, filter to those in FP+SP, and remove missing flows:
+# 
+# df.NWIS.Q<-read.csv("C:/PhD/CQ/Raw_Data/df.NWIS.Q.csv", colClasses = c(site_no = "character"))%>%
+#   filter(site_no %in% df.sf.NWIS.62$Name)%>%
+#   drop_na(X_00060_00003)
+# 
+# # calcualte BFI for each site and rename site_no to Name
+# 
+# df.BFI<-df.NWIS.Q%>%
+#   group_by(site_no)%>%
+#   summarise(BFI = calc_bfi(X_00060_00003), n=n())%>%
+#   rename(Name = site_no)
+# 
+# # save:
+# 
+# save(df.BFI, file = 'Processed_Data/df.BFI.Rdata')
+# 
+# #
 
 
 
@@ -1891,52 +1973,106 @@ load('Processed_Data/df.RIP.CSA.Rdata')
 
 ####~~~~Finalize DataLayers Second Pass ~~~~####
 
-# the follwoing dataframes contain predictors for the sites:
+# # the follwoing dataframes contain predictors for the sites:
+# 
+# (df.NWIS.NLCD.2016<-df.NWIS.NLCD.2016%>%select(-R_NA)) # land use NLCD
+# 
+# df.CDL # land use CDL (crop specific)
+# 
+# df.NWIS.DEM # elevation
+# 
+# (df.soils<-df.soils%>%rename(HSG_A=A, HSG_B=B, HSG_C=C, HSG_D=D)) #soils
+# 
+# # *note8 second pass has 19 out of 20 because site 13 didnt have any soils data
+# 
+# df.RIP # riparian buffer percent land use
+# 
+# (df.FB<-df.FB%>%rename(Name = 1)) # FRAGUN BASIN
+# 
+# (df.CSA<-rename(df.CSA, CSA_perc=value)) # watershed percent CSA area
+# 
+# (df.Ag.CSA<-rename(df.Ag.CSA, Ag.CSA_perc=value))
+# 
+# # combine into single df:
+# 
+# df.list<-list(df.NWIS.NLCD.2016, df.CDL, df.NWIS.DEM, df.soils, df.RIP, df.FB, df.CSA, df.Ag.CSA)
+# 
+# df.datalayers<-plyr::join_all(df.list, by='Name', type='left')
+# 
+# # save:
+# 
+# save(df.datalayers, file = 'Processed_Data/df.datalayers.next20.Rdata')
+# 
+# #
 
-(df.NWIS.NLCD.2016<-df.NWIS.NLCD.2016%>%select(-R_NA)) # land use NLCD
 
-df.CDL # land use CDL (crop specific)
 
-df.NWIS.DEM # elevation
 
-(df.soils<-df.soils%>%rename(HSG_A=A, HSG_B=B, HSG_C=C, HSG_D=D)) #soils
 
-# *note8 second pass has 19 out of 20 because site 13 didnt have any soils data
 
-df.RIP # riparian buffer percent land use
 
-(df.FB<-df.FB%>%rename(Name = 1)) # FRAGUN BASIN
 
-(df.CSA<-rename(df.CSA, CSA_perc=value)) # watershed percent CSA area
 
-(df.Ag.CSA<-rename(df.Ag.CSA, Ag.CSA_perc=value))
 
-# combine into single df:
 
-df.list<-list(df.NWIS.NLCD.2016, df.CDL, df.NWIS.DEM, df.soils, df.RIP, df.FB, df.CSA, df.Ag.CSA)
 
-df.datalayers<-plyr::join_all(df.list, by='Name', type='left')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####~~~~Finalize DataLayers Combine FP, SP, and non-FP/SP specific ~~~~####
+
+# load in df.datalayers for FP:
+
+load('Processed_Data/df.datalayers.Rdata')
+
+# rename FP since SP has the same df name:
+
+df.datalayers.FP<-df.datalayers
+
+# load in df.datalayers for SP:
+
+load('Processed_Data/df.datalayers.next20.Rdata')
+
+# load in df.WWTP:
+
+load('Processed_Data/df.WWTP.Rdata')
+
+# load in df.RIP.CSA:
+
+load('Processed_Data/df.RIP.CSA.Rdata')
+
+# load df.BFI:
+
+load('Processed_Data/df.BFI.Rdata')
+
+# merge all dfs:
+
+df.datalayers.62<-bind_rows(df.datalayers.FP, df.datalayers)%>%
+  left_join(., df.WWTP, by = 'Name')%>%
+  left_join(., df.RIP.CSA, by = 'Name')%>%
+  left_join(., df.BFI, by = 'Name')
 
 # save:
 
-save(df.datalayers, file = 'Processed_Data/df.datalayers.next20.Rdata')
+save(df.datalayers.62, file = 'Processed_Data/df.datalayers.62.Rdata')
 
 #
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

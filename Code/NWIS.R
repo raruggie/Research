@@ -287,48 +287,48 @@ df.NWIS.TP_CQ<-left_join(df.NWIS.TP_CQ, df.DA, by = 'site_no')%>%
 
 #### Tradeoff matrix ####
 
-# build a matrix of the number of TP samples as a function of watershed size. To do this:
-
-# I already have a df with paired CQ observations and DA, just need to get the distinct sites:
-
-TP_sites<-df.NWIS.TP_CQ%>%distinct(site_no, .keep_all = T)
-
-# set up df to populate:
-
-m<-data.frame(Min_num_samples  = c(20,50,75,100,200), '25' = NA, '50' = NA, '100' = NA, '150'=NA, '250'=NA, '500'=NA, '1000'=NA, 'Unlimited'=NA)
-
-# set up variables for thresholds for number of samples and DA size:
-
-n_sam<- c(20,50,75,100,200)-1
-
-min_DA<- c(25,50,100,150,250,500,1000)
-
-# loop through number of samples (rows):
-
-# i<-1
-
-for (i in seq_along(n_sam)){
-  
-  temp.i<-TP_sites%>%filter(n>n_sam[i])
-  
-  m$Unlimited[i]<-dim(temp.i)[1]
-
-  # j<-2
-  
-  # loop through the size of the DA (columns)
-  for(j in  seq_along(min_DA)){
-    
-    temp.j<-temp.i%>%filter(drain_area_va<=min_DA[j])
-    
-    m[i,j+1]<-dim(temp.j)[1]
-    
-  }
-  
-}
-
-m
-
-#
+# # build a matrix of the number of TP samples as a function of watershed size. To do this:
+# 
+# # I already have a df with paired CQ observations and DA, just need to get the distinct sites:
+# 
+# TP_sites<-df.NWIS.TP_CQ%>%distinct(site_no, .keep_all = T)
+# 
+# # set up df to populate:
+# 
+# m<-data.frame(Min_num_samples  = c(20,50,75,100,200), '25' = NA, '50' = NA, '100' = NA, '150'=NA, '250'=NA, '500'=NA, '1000'=NA, 'Unlimited'=NA)
+# 
+# # set up variables for thresholds for number of samples and DA size:
+# 
+# n_sam<- c(20,50,75,100,200)-1
+# 
+# min_DA<- c(25,50,100,150,250,500,1000)
+# 
+# # loop through number of samples (rows):
+# 
+# # i<-1
+# 
+# for (i in seq_along(n_sam)){
+#   
+#   temp.i<-TP_sites%>%filter(n>n_sam[i])
+#   
+#   m$Unlimited[i]<-dim(temp.i)[1]
+# 
+#   # j<-2
+#   
+#   # loop through the size of the DA (columns)
+#   for(j in  seq_along(min_DA)){
+#     
+#     temp.j<-temp.i%>%filter(drain_area_va<=min_DA[j])
+#     
+#     m[i,j+1]<-dim(temp.j)[1]
+#     
+#   }
+#   
+# }
+# 
+# m
+# 
+# #
 
 
 
@@ -1222,33 +1222,33 @@ df.Yield.2model <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pi
 
 # read in datalayers predictors:
 
-# read in first and second pass and merge into single df:
+load('Processed_Data/df.datalayers.62.Rdata')
 
-load('Processed_Data/df.datalayers.Rdata') # first pass:
-df.datalayers.FP<-df.datalayers # rename because next load overwrites with same name
-load('Processed_Data/df.datalayers.next20.Rdata') # second pass
-df.datalayers<-bind_rows(df.datalayers.FP, df.datalayers)
+# rename to just df.datalayers to work with code:
 
-# read in df.WWTP (not FP or SP specific rn):
+df.datalayers<-df.datalayers.62
 
-load('Processed_Data/df.WWTP.Rdata')
+# *note* that one site has NA for pedictors that require soils since it had no sSurgo coverage
+# I will remove that site:
 
-df.datalayers<-left_join(df.datalayers, df.WWTP, by = 'Name')
+df.datalayers<-df.datalayers%>%filter(!is.na(CSA_perc))
 
-# note that df.datalayers from second pass does not have 
-# column "Dbl_Crop_WinWht/Soybeans"
+# *note* df.datalayers from second pass does not have column "Dbl_Crop_WinWht/Soybeans"
 
-# also note df.datalayers has 62 sites while df.TP_CQ (for second pass)
-# has 63 sites
+# *note* df.datalayers has 61 sites now. 
+# It did have 62 sites while df.TP_CQ (for second pass) has 63 sites
 # this is not a big deal for the correlaitons because it will just omit the
 # row with NAs in all the predictor columns, but this row will need to be omitted
 # when running the MLR
 
 # as per a first run of this workflow, remove emergentwetlands, soybeans, winter wheat, grassland
+# and replace NA with zero (this is ok since I removed the site with NA for soils where a zero would be wrong):
 
 df.datalayers<-df.datalayers%>%
   select(-c(R_EMERGWETNLCD06, R_GRASSNLCD06, Soybeans, Winter_Wheat, `Dbl_Crop_WinWht/Soybeans`, R_WOODYWETNLCD06))%>%
   replace(is.na(.), 0)
+
+# now ready to run through correlaitons workflow:
 
 # combined the reduced predictors df with the already filtered CQ data:
 
@@ -1351,7 +1351,7 @@ p1
 # determine the top correlates (the numberof the list determined which CQ parameter)
 # here 1 = OLS intercept:
 
-OLS<-l.cor[[5]]%>%arrange(desc(Spearman_Correlation))
+OLS<-l.cor[[1]]%>%arrange(desc(Spearman_Correlation))
 
 # make univariate plots (facets) of Y (determined in [[]]) above and predictors: 
 # note the predictor column isturned into an ordered factor based on thespearman correlation values
@@ -2070,37 +2070,6 @@ names(m.list)<-names(l.cor.MLR.full)
 tab_model(m.list, dv.labels = names(m.list), title = paste('Comparison of MLR models for',ncode, 'using forward selection implemented in caret::train'), file="temp.top50.html")
 
 #
-
-
-
-#### MLR - Cherry picking input features ####
-
-# the MLR forward selection wasnt returing any signficant 
-# predictors 
-
-# lets see what a single variable models looks like:
-
-y<-l.cor.MLR.full[[5]] # Yield
-
-y.round<-round(y, 2)
-
-a<-y$term
-b<-y$CSA_perc
-
-m.CSA_perc<-lm(a~b)
-
-summary(m.CSA_perc)
-
-plot(b,a)
-abline(m.CSA_perc)
-
-cor(b,a, method = 's')
-
-
-# I think that the forward selection is right, these single variabe models suck too
-
-#
-
 
 
 
