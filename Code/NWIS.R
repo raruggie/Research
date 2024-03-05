@@ -1245,7 +1245,7 @@ df.datalayers<-df.datalayers%>%filter(!is.na(CSA_perc))
 # and replace NA with zero (this is ok since I removed the site with NA for soils where a zero would be wrong):
 
 df.datalayers<-df.datalayers%>%
-  select(-c(R_EMERGWETNLCD06, R_GRASSNLCD06, Soybeans, Winter_Wheat, `Dbl_Crop_WinWht/Soybeans`, R_WOODYWETNLCD06))%>%
+  select(-c(R_EMERGWETNLCD06, R_SHRUBNLCD06, R_BARRENNLCD06,R_GRASSNLCD06, Soybeans, Winter_Wheat, `Dbl_Crop_WinWht/Soybeans`, R_WOODYWETNLCD06))%>%
   replace(is.na(.), 0)
 
 # now ready to run through correlaitons workflow:
@@ -2006,79 +2006,192 @@ tab_model(m.list, dv.labels = names(m.list), title = paste('Comparison of MLR mo
 
 #### MLR with observations greater than the median ####
 
-# determine the median flow rate for each sites CQ observations: to do this:
+# # determine the median flow rate for each sites CQ observations: to do this:
+# 
+# df.TP_CQ.top50<-split(df.TP_CQ, f = df.TP_CQ$Name)%>% # split the df into list of dfs for each site, 
+#   lapply(., \(i) i%>%filter(X_00060_00003>median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
+#   bind_rows(.) # bind back into single dataframe:
+# 
+# # now run through the MLR workflow:
+# 
+# l.cor.MLR<-df.cor.top50 %>% # create a list of dfs, one for each cQ parameter, with the values of the spearman correlations for each predictor:
+#   split(., df.cor.top50$CQ_Parameter)%>%
+#   lapply(., \(i) i%>% 
+#            arrange(desc(abs(Spearman_Correlation)))%>%  
+#            # slice_head(n = 7)%>%
+#            # bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
+#            # distinct(term, .keep_all = T)%>%
+#            # filter(!between(Spearman_Correlation, -0.25,.25))%>%
+#            mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
+#            # mutate(term = factor(term, levels = unique(term[order(Spearman_Correlation)])))%>%
+#            # filter(sig_0.05 == 'sig')%>%
+#            as.data.frame())
+# l.cor.MLR.full<-lapply(1:5, \(i) df.OLS_Sens.top50%>% # create a list of dfs from df.OLS.Sens, which contains the values of the predictors, subseting using the names in each l.cor[[i]]$term:
+#                          select(i+1, l.cor.MLR[[i]]$term)%>%
+#                          as.data.frame()%>%
+#                          rename(term = 1))
+# names(l.cor.MLR.full)<-names(df.OLS_Sens.top50)[2:6]
+# l.cor.MLR.full.w_name<-lapply(1:5, \(i) df.OLS_Sens.top50%>% # create another list but keep the site names for use at end of loop in site outliers:
+#                                 select(1, i+1, l.cor.MLR[[i]]$term)%>%
+#                                 as.data.frame())
+# names(l.cor.MLR.full.w_name)<-names(df.OLS_Sens.top50)[2:6]
+# m.list<-list() # create list to store model objects
+# i<-1
+# for (i in 1:5){ # loop through the 5 CQ parameters:
+#   df<-l.cor.MLR.full[[i]]
+#   library(caret)
+#   set.seed(123)
+#   train.control <- trainControl(method = "cv", number = 10) # Set up repeated k-fold cross-validation
+#   step.model <- train(term ~., data = df, method = "leapForward", tuneGrid = data.frame(nvmax = 1:5),trControl = train.control) # Train the model
+#   step.model$results  # look at model results:
+#   step.model$bestTune
+#   summary(step.model$finalModel)
+#   coef(step.model$finalModel, as.numeric(step.model$bestTune))
+#   pred<-names(coef(step.model$finalModel, as.numeric(step.model$bestTune)))[-1] # get df of just the predictors in this model:
+#   df.2<-df%>%select(term, pred)
+#   m<-lm(term~., data=df.2) # make lm:
+#   m.list[[i]]<-m # append model to list
+#   summary(m)
+#   p<-df.2%>%pivot_longer(cols = 2:last_col(), names_to = 'Predictor', values_to = 'Value')%>% # look at univarite plots:
+#     rename(!!names(l.cor.MLR.full)[i]:=term)%>%
+#     ggplot(., aes(x=Value, y=!!sym(names(l.cor.MLR.full)[i])))+
+#     geom_point()+
+#     geom_smooth(method = 'lm')+
+#     facet_wrap('Predictor', scales = 'free')
+#   p
+#   # plot(m)  # look at model residuals:
+#   
+# }
+# 
+# # set m.list names:
+# 
+# names(m.list)<-names(l.cor.MLR.full)
+# 
+# tab_model(m.list, dv.labels = names(m.list), title = paste('Comparison of MLR models for',ncode, 'using forward selection implemented in caret::train'), file="temp.top50.html")
+# 
+# #
 
-df.TP_CQ.top50<-split(df.TP_CQ, f = df.TP_CQ$Name)%>% # split the df into list of dfs for each site, 
-  lapply(., \(i) i%>%filter(X_00060_00003>median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
-  bind_rows(.) # bind back into single dataframe:
 
-# now run through the MLR workflow:
 
-l.cor.MLR<-df.cor.top50 %>% # create a list of dfs, one for each cQ parameter, with the values of the spearman correlations for each predictor:
-  split(., df.cor.top50$CQ_Parameter)%>%
-  lapply(., \(i) i%>% 
-           arrange(desc(abs(Spearman_Correlation)))%>%  
-           # slice_head(n = 7)%>%
-           # bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
-           # distinct(term, .keep_all = T)%>%
-           # filter(!between(Spearman_Correlation, -0.25,.25))%>%
-           mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
-           # mutate(term = factor(term, levels = unique(term[order(Spearman_Correlation)])))%>%
-           # filter(sig_0.05 == 'sig')%>%
-           as.data.frame())
-l.cor.MLR.full<-lapply(1:5, \(i) df.OLS_Sens.top50%>% # create a list of dfs from df.OLS.Sens, which contains the values of the predictors, subseting using the names in each l.cor[[i]]$term:
-                         select(i+1, l.cor.MLR[[i]]$term)%>%
-                         as.data.frame()%>%
-                         rename(term = 1))
-names(l.cor.MLR.full)<-names(df.OLS_Sens.top50)[2:6]
-l.cor.MLR.full.w_name<-lapply(1:5, \(i) df.OLS_Sens.top50%>% # create another list but keep the site names for use at end of loop in site outliers:
-                                select(1, i+1, l.cor.MLR[[i]]$term)%>%
-                                as.data.frame())
-names(l.cor.MLR.full.w_name)<-names(df.OLS_Sens.top50)[2:6]
-m.list<-list() # create list to store model objects
-i<-1
-for (i in 1:5){ # loop through the 5 CQ parameters:
-  df<-l.cor.MLR.full[[i]]
-  library(caret)
-  set.seed(123)
-  train.control <- trainControl(method = "cv", number = 10) # Set up repeated k-fold cross-validation
-  step.model <- train(term ~., data = df, method = "leapForward", tuneGrid = data.frame(nvmax = 1:5),trControl = train.control) # Train the model
-  step.model$results  # look at model results:
-  step.model$bestTune
-  summary(step.model$finalModel)
-  coef(step.model$finalModel, as.numeric(step.model$bestTune))
-  pred<-names(coef(step.model$finalModel, as.numeric(step.model$bestTune)))[-1] # get df of just the predictors in this model:
-  df.2<-df%>%select(term, pred)
-  m<-lm(term~., data=df.2) # make lm:
-  m.list[[i]]<-m # append model to list
-  summary(m)
-  p<-df.2%>%pivot_longer(cols = 2:last_col(), names_to = 'Predictor', values_to = 'Value')%>% # look at univarite plots:
-    rename(!!names(l.cor.MLR.full)[i]:=term)%>%
-    ggplot(., aes(x=Value, y=!!sym(names(l.cor.MLR.full)[i])))+
-    geom_point()+
-    geom_smooth(method = 'lm')+
-    facet_wrap('Predictor', scales = 'free')
-  p
-  # plot(m)  # look at model residuals:
-  
-}
 
-# set m.list names:
 
-names(m.list)<-names(l.cor.MLR.full)
 
-tab_model(m.list, dv.labels = names(m.list), title = paste('Comparison of MLR models for',ncode, 'using forward selection implemented in caret::train'), file="temp.top50.html")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### PLSR ####
+
+# install.packages("pls")
+library(pls)
+library(nortest)
+library(flipFormat)
+
+# run PLSR for 1 CQ metric: to do this:
+
+# set up df:
+
+df.OLS.I<-df.OLS_Sens[,c(2, 7:ncol(df.OLS_Sens))]%>%
+  drop_na(CSA_perc)%>%
+  as.data.frame()%>%
+  select_if(colSums(.) != 0)
+
+# test for normality:
+
+df.norm.test<-lapply(df.OLS.I, lillie.test)%>% # use nortest::lillie.test in lapply,
+  lapply(., \(i) round(i$p.value,3))%>% # extract just pvalue
+  enframe(.) # convert list to df
+
+# I cant boxcox transform variables with significant p-values (reject null hypothesis that data is normally distirubed):
+# because of zeros and negatives...
+# I was doing this because Musolff et al. 2015 said they normalized variable prior to using plsr
+# however the pls user manual doesnt say this and the example data they use is not normally distributed.
+
+# so I am just going to run the plsr:
+
+# run:
+
+test <- plsr(OLS.I ~ ., data = df.OLS.I, validation = "CV")
+
+# summary(test)
+
+# plot(RMSEP(test), legendpos = "topright")
+
+# plot(test, plottype = "correlation", ncomp=1:2, legendpos = "bottomleft",labels = "numbers")
+
+plot(test, labels = "numbers")
+
+# if you rerun test, consistently 31, 16, 11, 40, and 60 are outliers from the pack
+# somtimes 11 is in cloud...
+
+# but removing these and trying again:
+
+df.OLS.I<-df.OLS.I[-c(31, 16, 11, 40, 60),]
+
+load('Processed_Data/NWIS_Watershed_Shapefiles.62.Rdata')
+temp<-df.sf.NWIS.62%>%filter(Name %in% df.OLS_Sens$Name[c(31, 16, 11, 40, 60)])
+mapview(temp)
+
+# another method for ncomp determinitaiton:
+
+ncomp.onesigma <- selectNcomp(test, method = "onesigma", plot = TRUE)
+ncomp.permut <- selectNcomp(test, method = "randomization", plot = TRUE)
+
+# extract the ideal number of comps (minimum RMSEP):
+
+ncomp<-which.min(RMSEP(test)$val[estimate = "adjCV", , ]) - 1
+
+# rerun:
+
+# test <- plsr(OLS.I ~ ., ncomp = ncomp, data = df.OLS.I, validation = "CV")
+
+# extract VIP:
+
+coef<-as.data.frame.table(coef(test))%>%
+  select(1,4)%>%
+  mutate(VIP = round(Freq/sum(Freq), 3), Value = round(Freq, 3))%>%
+  rename(Variable = 1)%>%
+  select(Variable, Value, VIP)%>%
+  arrange(desc(Value))
+
+
+
+
+# now edo model with that many comps:
+
+test <- plsr(OLS.I ~ ., ncomps = 13,data = df.OLS.I, validation = "CV")
+
+plot(test)
+
+
+
+summary(test)
 
 #
 
 
+plot(test, ncomp = 2, asp = 1, line = TRUE)
+
+plot(test, plottype = "scores", comps = 1:5)
 
 
 
-
-
-
-
+#
 
 
 
