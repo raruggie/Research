@@ -1031,4 +1031,88 @@ fun.Ag.CSA<-function(i, WA){
   
 }
 
+# function for calcuating breakpoint in CQ curve:
+
+i<-1
+
+# df.CQ<-df.TP_CQ
+
+
+fun.CQ.BP<-function(i, df.CQ){
+  
+  site<-sort(unique(df.CQ$site_no))[i]
+  
+  # workflow:
+  
+  tryCatch({
+    
+    # print the site name for loop debugging:
+    
+    print(i)
+    print(site)
+
+    
+    # create a dataframe that will work with segmented. To do this: 
+    # filter for the site the loop is in
+    # add log transformed C and Q columns, as well as duplicated columns for renamed C and Q
+    # filter for real log C and Q values so breakpoint analysis works smoothly:
+    
+    df<-df.CQ%>%
+      filter(site_no == site)%>%
+      mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
+      filter(is.finite(log_C))%>%
+      filter(is.finite(log_Q))
+    
+    # build a single slope lm for log C and Q. Tis model is also used inthe breakpoint analysis inthenext step:
+    
+    m<-lm(log_C~log_Q, df)
+    
+    # perform breakpoint regression:
+    
+    m_seg<-segmented(obj = m, npsi = 1)
+    
+    # save the breakpoints
+    
+    bp<-m_seg$psi[1]
+    
+    # save the slopes: To do this:
+    # a conditional statement is needed since sometimes the segmented function wont fit a two slope model at all and will return a object that doesnt work with the slope function used here:
+    
+    if(length(class(m_seg))==2){
+      s<-as.data.frame(slope(m_seg))
+    } else{
+      s<-NA
+    }
+    
+    # get the intercepts (again conditional statement is needed):
+    
+    if(length(class(m_seg))==2){
+      inter<-as.data.frame(intercept(m_seg))
+    } else{
+      inter<-NA
+    }
+    
+    # get the model fitted data and put in a dataframe:
+    
+    fit <- data.frame(Q = df$log_Q, Seg_C = fitted(m_seg))
+    
+    # reformat this dataframe to export out of the loop
+    
+    if(length(class(m_seg))==2){
+      result_df<-fit%>%mutate(site = site, Date = df$sample_dt, n = df$n, Q_real = df$Q, C = df$C, I1 = inter$Est.[1], I2 = inter$Est.[2], Slope1 = s[1,1], Slope2 = s[2,1], BP = bp)
+    } else{
+      result_df<-fit%>%mutate(site = site, Date = df$sample_dt, n = df$n, Q_real = df$Q, C = df$C, I1 = NA, I2 = NA, Slope1 = NA, Slope2 = NA, BP = NA)
+    }
+    
+    # set BP_yes column:
+    
+    result_df$BP_yes<-davies.test(m)$p.val<0.05
+    
+    # return:
+    
+    return(result_df)
+    
+  }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
+  
+}
 

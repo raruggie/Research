@@ -450,7 +450,7 @@ length(unique(x2$site_no))
 
 ####~~ Finalizing df.TP_CQ to move on in code ~~####
 
-#### first pass ####
+#f irst pass 
 
 df.TP_CQ<-temp3
 
@@ -458,7 +458,7 @@ df.TP_CQ<-temp3
 
 # save(df.TP_CQ,file = 'Processed_Data/TP.Rdata')
 
-#### second pass ####
+# second pass
 
 df.TP_CQ.SP<-temp2
 
@@ -492,135 +492,28 @@ df.TP_CQ<-df.TP_CQ.SP
 
 #### Fitting Breakpoints to CQ curves #### 
 
-# create empty list to hold the results of the segmented function (which does the breakpoint analysis)
+# use funciton in lapply to get list of df of segmented results:
 
-l_Seg<-list()
-
-# create a matrix to hold the results of the davies test, which determines if a two slope model is warrented over a single slope model:
-
-davies.test.matrix<-NULL
-
-# create a new dataframe of only paired CQ observations 
-# (such that the breakpoit analysis function runs smoothly) 
-# * this should notchange the df!! drop_na is just a check, this should have been done earlier in the code
-
-df.TP_CQ_for_BP<-df.TP_CQ%>%
-  drop_na(result_va, Q_yield)
-
-# create a vector of ordered unique site names:
-
-temp.loop<-sort(unique(df.TP_CQ_for_BP$site_no))
-
-# test i for for loop building:
-
-# i<-4
-
-# loop through the sites:
-
-for (i in seq_along(temp.loop)){
-  
-  tryCatch({
-    
-    # print the site name for loop debugging:
-    
-    print(i)
-    print(temp.loop[i])
-    
-    # create a dataframe that will work with segmented. To do this: 
-    # filter for the site the loop is in
-    # add log transformed C and Q columns, as well as duplicated columns for renamed C and Q
-    # filter for real log C and Q values so breakpoint analysis works smoothly:
-    
-    df<-df.TP_CQ_for_BP%>%
-      filter(site_no == temp.loop[i])%>%
-      mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-      filter(is.finite(log_C))%>%
-      filter(is.finite(log_Q))
-    
-    # build a single slope lm for log C and Q. Tis model is also used inthe breakpoint analysis inthenext step:
-    
-    m<-lm(log_C~log_Q, df)
-    
-    # perform breakpoint regression:
-    
-    m_seg<-segmented(obj = m, npsi = 1)
-    
-    # perform davies test for constant linear predictor:
-    # the results are saved as a string with the the site name and true/false:
-    
-    x<-paste(temp.loop[i], '-', davies.test(m)$p.val<0.05)
-    
-    # add the results of davies test to the matrix made prior to this for loop:
-    
-    davies.test.matrix<-c(davies.test.matrix,x)
-    
-    # save the breakpoints
-    
-    bp<-m_seg$psi[1]
-    
-    # save the slopes: To do this:
-    # a conditional statement is needed since sometimes the segmented function wont fit a two slope model at all and will return a object that doesnt work with the slope function used here:
-    
-    if(length(class(m_seg))==2){
-      s<-as.data.frame(slope(m_seg))
-    } else{
-      s<-NA
-    }
-    
-    # get the intercepts (again conditional statement is needed):
-    
-    if(length(class(m_seg))==2){
-      inter<-as.data.frame(intercept(m_seg))
-    } else{
-      inter<-NA
-    }
-    
-    
-    # get the model fitted data and put in a dataframe:
-    
-    fit <- data.frame(Q = df$log_Q, Seg_C = fitted(m_seg))
-    
-    # reformat this dataframe to export out of the loop
-    
-    if(length(class(m_seg))==2){
-      result_df<-fit%>%mutate(site = temp.loop[i], Date = df$sample_dt, n = df$n, Q_real = df$Q, C = df$C, I1 = inter$Est.[1], I2 = inter$Est.[2], Slope1 = s[1,1], Slope2 = s[2,1], BP = bp)
-    } else{
-      result_df<-fit%>%mutate(site = temp.loop[i], Date = df$sample_dt, n = df$n, Q_real = df$Q, C = df$C, I1 = NA, I2 = NA, Slope1 = NA, Slope2 = NA, BP = NA)
-    }
-    
-    l_Seg[[i]]<-result_df
-    
-  }, 
-  
-  error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
-  
-}
-
-# Looking at the davies test results:
-
-davies.test.matrix
-
-# transform this matrix into a two column dataframe for use later with df_Seg and plotting. To do this:
-# separate the matrix into two columns
-# use mutate to remove white space around these character columns:
-
-df.davies<-as.data.frame(davies.test.matrix)%>%
-  separate_wider_delim(1, "-", names = c("site", "BP_yes"))%>%
-  mutate(across(c(1,2), trimws))
+l_Seg<-lapply(seq_along(unique(df.TP_CQ$site_no)), \(i) fun.CQ.BP(i, df.TP_CQ))
 
 # now combine the list of dfs of the breakpoint analysis results (with fitted values, intercepts and slopes) into a single df:
 
 df_Seg<-bind_rows(l_Seg)
 
-# merge this dataframe with the davies test result dfs to add the BP_yes column, use replace and the BP yes column with a conditional statement to set the breakpoint Q and C column rows to NA, as to not plot the segmeneted line if davies test was false:
+# use replace and the BP yes column with a conditional statement to set the breakpoint Q and C column rows to NA, as to not plot the segmeneted line if davies test was false:
 
 df_Seg<-df_Seg%>%
-  left_join(., df.davies, by = 'site')%>%
   mutate(across(c(1,2), ~replace(., BP_yes == 'FALSE', NA)))
 
 # add a column for number of samples:
 
-df_Seg<-left_join(df_Seg, temp[,c(1,3)], by = c('site'='site_no'))%>%
+temp<-df_Seg%>%
+  group_by(site)%>%
+  summarise(n=n())%>%
+  arrange(desc(n))%>%
+  mutate(n_sample_rank=rank(-n, ties.method='first'))
+
+df_Seg<-left_join(df_Seg, temp%>%select(site, n_sample_rank), by = 'site')%>%
   arrange(n_sample_rank)
 
 # ready to plot:
@@ -634,7 +527,7 @@ df_Seg<-left_join(df_Seg, temp[,c(1,3)], by = c('site'='site_no'))%>%
 #     strip.background = element_blank(),
 #     strip.text.x = element_blank()
 #   )
-
+# 
 # p
 
 # one last thing: lets look at a map of these:
@@ -649,6 +542,85 @@ df_Seg<-left_join(df_Seg, temp[,c(1,3)], by = c('site'='site_no'))%>%
 # mapview(map.NWIS.TP_sites)
 
 # save(map.NWIS.TP_sites, file = 'C:/PhD/CQ/Processed_Data/map.NWIS.TP_sites.Rdata')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Setting up Response Variables ####
+
+# CQ metrics:
+
+# OLS intercept and slope for single slope model:
+
+df.OLS<-df.TP_CQ%>%
+  rename(Name = site_no)%>%
+  select(Name, sample_dt,result_va, X_00060_00003)%>%
+  mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
+  filter(is.finite(log_C))%>%
+  filter(is.finite(log_Q))%>%
+  group_by(Name)%>%
+  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+  summarize(., OLS.I.1.slope = OLS.co[1], 
+            OLS.S.1.slope = OLS.co[2])
+  }) %>%
+  ungroup
+
+# Sens intercept and slope for single slope model:
+
+df.Sens<-df.TP_CQ%>%
+  rename(Name = site_no)%>%
+  select(Name, sample_dt,result_va, X_00060_00003)%>%
+  mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
+  filter(is.finite(log_C))%>%
+  filter(is.finite(log_Q))%>%
+  group_by(Name)%>%
+  do({ Sens.co<-zyp.sen(log_C~log_Q,.)
+  summarize(., Sen.I.1.slope = Sens.co$coefficients[[1]],
+            Sen.S.1.slope= Sens.co$coefficients[[2]])
+  }) %>%
+  ungroup
+
+# OLS intercept and slope for two slope model:
+
+# threshold by median flow rate:
+
+df.TP_CQ.top50<-split(df.TP_CQ, f = df.TP_CQ$site_no)%>% # split the df into list of dfs for each site,
+  lapply(., \(i) i%>%filter(X_00060_00003>median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
+  bind_rows(.) # bind back into single dataframe:
+
+# merge OLS and Sens:
+
+df.OLS_Sens<-left_join(df.OLS, df.Sens, by = 'Name')
+
+# merge constiuent yield:
+
+df.OLS_Sens<-left_join(df.OLS_Sens, df.Yield, by = 'Name')
 
 
 
@@ -736,6 +708,36 @@ l.Yield<-lapply(names(l.C_daily), \(i) l.C_daily[[i]]*l.Q.temp[[i]]*(1/l.DA[[i]]
 df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Yield') # units of kg/ha/year
 
 #
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #### Calculating Average Annual Consituent Yield for Top 50 ####
 
@@ -1245,8 +1247,14 @@ df.datalayers<-df.datalayers%>%filter(!is.na(CSA_perc))
 # and replace NA with zero (this is ok since I removed the site with NA for soils where a zero would be wrong):
 
 df.datalayers<-df.datalayers%>%
-  select(-c(R_EMERGWETNLCD06, R_SHRUBNLCD06, R_BARRENNLCD06,R_GRASSNLCD06, Soybeans, Winter_Wheat, `Dbl_Crop_WinWht/Soybeans`, R_WOODYWETNLCD06))%>%
+  select(-c(R_EMERGWETNLCD06, R_SNOWICENLCD06, R_SHRUBNLCD06, R_BARRENNLCD06,R_GRASSNLCD06, Soybeans, Winter_Wheat, `Dbl_Crop_WinWht/Soybeans`, R_WOODYWETNLCD06))%>%
   replace(is.na(.), 0)
+
+# look at correlaiton matrix:
+
+library(corrplot)
+
+corrplot(cor(df.datalayers[,-c(1, 10:30)]))
 
 # now ready to run through correlaitons workflow:
 
@@ -1515,132 +1523,132 @@ df.OLS_Sens%>%
 
 # cant run next few section until categorizing landuse works (need dfNLCD...)
 
-# create a list of dataframes for each sites CQ observations:
-
-df.TP_CQ<-df.TP_CQ%>%
-  rename(Name = site_no)%>%
-  mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-  filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))
-
-l.TP_CQ<-df.TP_CQ%>%
-  split(., .$Name)
-
-# create lm models for each site:
-
-l.TP_CQ.lm<-lapply(l.TP_CQ, \(i) lm(log_C~log_Q, data=i))
-
-# save the model coef ad pvals:
-
-TP_CQ.coef<-as.data.frame(bind_rows(lapply(l.TP_CQ.lm, \(i) summary(i)$coefficients[,1]), .id = 'site_no'))%>%
-  rename(Intercept = 2, Slope = 3)
-
-# save the pvalues 
-
-TP_CQ.pvals<-as.data.frame(bind_rows(lapply(l.TP_CQ.lm, \(i) summary(i)$coefficients[,4]), .id = 'site_no'))%>%
-  rename(Intercept.pval = 2, Slope.pval = 3)
-
-# merge the two dfs:
-
-df.lm<-left_join(TP_CQ.coef,TP_CQ.pvals,by='site_no')%>%left_join(., df.TP_CQ%>%select(Name, n_sample_rank)%>%distinct(., .keep_all = T), by = c('site_no' = 'Name'))
-
-# add column for CQ type:
-
-df.lm<-mutate(df.lm, Type = ifelse(Slope.pval>0.05, 'Stationary', ifelse(Slope>0, 'Mobilization', 'Dilution')))
-
-# merge CQ type labels to the df for plotting
-
-df.TP_CQ<-left_join(df.TP_CQ,df.lm%>%select(site_no, Type),by=c('Name'='site_no'))
-
-# create a df for CQplot of all sites with BP analysis: make sure to filter out pre 2001 samples:
-
-df_Seg.2<-filter(df_Seg, site %in% df.lm$site_no)%>%
-  left_join(.,df.lm%>%select(site_no, Type),by=c('site'='site_no'))
-
+# # create a list of dataframes for each sites CQ observations:
+# 
+# df.TP_CQ<-df.TP_CQ%>%
+#   rename(Name = site_no)%>%
+#   mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
+#   filter(is.finite(log_C))%>%
+#   filter(is.finite(log_Q))
+# 
+# l.TP_CQ<-df.TP_CQ%>%
+#   split(., .$Name)
+# 
+# # create lm models for each site:
+# 
+# l.TP_CQ.lm<-lapply(l.TP_CQ, \(i) lm(log_C~log_Q, data=i))
+# 
+# # save the model coef ad pvals:
+# 
+# TP_CQ.coef<-as.data.frame(bind_rows(lapply(l.TP_CQ.lm, \(i) summary(i)$coefficients[,1]), .id = 'site_no'))%>%
+#   rename(Intercept = 2, Slope = 3)
+# 
+# # save the pvalues 
+# 
+# TP_CQ.pvals<-as.data.frame(bind_rows(lapply(l.TP_CQ.lm, \(i) summary(i)$coefficients[,4]), .id = 'site_no'))%>%
+#   rename(Intercept.pval = 2, Slope.pval = 3)
+# 
+# # merge the two dfs:
+# 
+# df.lm<-left_join(TP_CQ.coef,TP_CQ.pvals,by='site_no')%>%left_join(., df.TP_CQ%>%select(Name, n_sample_rank)%>%distinct(., .keep_all = T), by = c('site_no' = 'Name'))
+# 
+# # add column for CQ type:
+# 
+# df.lm<-mutate(df.lm, Type = ifelse(Slope.pval>0.05, 'Stationary', ifelse(Slope>0, 'Mobilization', 'Dilution')))
+# 
+# # merge CQ type labels to the df for plotting
+# 
+# df.TP_CQ<-left_join(df.TP_CQ,df.lm%>%select(site_no, Type),by=c('Name'='site_no'))
+# 
+# # create a df for CQplot of all sites with BP analysis: make sure to filter out pre 2001 samples:
+# 
+# df_Seg.2<-filter(df_Seg, site %in% df.lm$site_no)%>%
+#   left_join(.,df.lm%>%select(site_no, Type),by=c('site'='site_no'))
+# 
+# # # make plot:
+# # 
+# # p<-ggplot(df_Seg.2, aes(x = log(Q_real), y = log(C)))+
+# #   geom_point(aes(color = Type))+
+# #   geom_smooth(method = 'lm')+
+# #   geom_line(aes(x = Q, y = Seg_C), color = 'purple', size = 2)+
+# #   facet_wrap('n_sample_rank', scales = 'free')+
+# #   theme(
+# #     strip.background = element_blank(),
+# #     strip.text.x = element_blank()
+# #   )
+# 
+# # p
+# 
+# # looking at this plot I want to add a fourth CQ type for complex, if the slopes of the BP analysis look widely different. 
+# # I will start with calcuating the angle between pre-post BP slope and see which sites get signled out:
+# 
+# # add a new column with the angle between the two lines:
+# 
+# df_Seg.2<-df_Seg.2%>%
+#   mutate(slope_angle=factor(round(atan(abs((Slope2-Slope1)/(1+(Slope2*Slope1)))),1)))
+# 
+# # I want to add land use as color as well. Merge the plotting df with the land use df:
+# 
+# df_Seg.2<-left_join(df_Seg.2, df.NLCD06%>%select(Name, USGS.LU.Adjusted), by = c('site'='Name'))
+# 
+# # create color pallete for the slope angle:
+# 
+# hc<-heat.colors(length(unique(df_Seg.2$slope_angle)), rev = T)
+# 
 # # make plot:
 # 
 # p<-ggplot(df_Seg.2, aes(x = log(Q_real), y = log(C)))+
 #   geom_point(aes(color = Type))+
+#   scale_color_manual(name = "CQ Type", values = c("red", "blue", "green"))+
+#   ylab('log(TP)')+
 #   geom_smooth(method = 'lm')+
-#   geom_line(aes(x = Q, y = Seg_C), color = 'purple', size = 2)+
-#   facet_wrap('n_sample_rank', scales = 'free')+
+#   new_scale_color() +
+#   geom_line(aes(x = Q, y = Seg_C), size = 2.5, color = 'black')+
+#   geom_line(aes(x = Q, y = Seg_C, color = slope_angle), size = 2)+
+#   scale_color_manual(name = "Slope Angle", values = hc)+
+#   facet_wrap(dplyr::vars(n_sample_rank), scales = 'fixed')+
 #   theme(
 #     strip.background = element_blank(),
 #     strip.text.x = element_blank()
-#   )
-
-# p
-
-# looking at this plot I want to add a fourth CQ type for complex, if the slopes of the BP analysis look widely different. 
-# I will start with calcuating the angle between pre-post BP slope and see which sites get signled out:
-
-# add a new column with the angle between the two lines:
-
-df_Seg.2<-df_Seg.2%>%
-  mutate(slope_angle=factor(round(atan(abs((Slope2-Slope1)/(1+(Slope2*Slope1)))),1)))
-
-# I want to add land use as color as well. Merge the plotting df with the land use df:
-
-df_Seg.2<-left_join(df_Seg.2, df.NLCD06%>%select(Name, USGS.LU.Adjusted), by = c('site'='Name'))
-
-# create color pallete for the slope angle:
-
-hc<-heat.colors(length(unique(df_Seg.2$slope_angle)), rev = T)
-
-# make plot:
-
-p<-ggplot(df_Seg.2, aes(x = log(Q_real), y = log(C)))+
-  geom_point(aes(color = Type))+
-  scale_color_manual(name = "CQ Type", values = c("red", "blue", "green"))+
-  ylab('log(TP)')+
-  geom_smooth(method = 'lm')+
-  new_scale_color() +
-  geom_line(aes(x = Q, y = Seg_C), size = 2.5, color = 'black')+
-  geom_line(aes(x = Q, y = Seg_C, color = slope_angle), size = 2)+
-  scale_color_manual(name = "Slope Angle", values = hc)+
-  facet_wrap(dplyr::vars(n_sample_rank), scales = 'fixed')+
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_blank()
-  )+
-  geom_rect(data = df_Seg.2%>%distinct(df_Seg.2$site, .keep_all = T), aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = USGS.LU.Adjusted), alpha = .35)+
-  scale_fill_manual(name = "USGS Landuse\n(Adjusted)", values = c("red", "blue","yellow", "green"))
-
-# p
-
-# export df_Seg.2:
-
-# save(df_Seg.2, file = 'Processed_Data/TP.df_Seg.2.Rdata')
-
-# based on this plot, I think I need to zoom in on each one:
-
-# create a plotting function for each site:
-
-# p.fun<-function(df){
-#   ggplot(df, aes(x = log(Q_real), y = log(C)))+
-#     geom_point(aes(color = Type))+
-#     scale_color_manual(name = "CQ Type", values = c("red", "blue", "green"))+
-#     geom_smooth(method = 'lm')+
-#     new_scale_color() +
-#     geom_line(aes(x = Q, y = Seg_C), size = 2.5, color = 'black')+
-#     geom_line(aes(x = Q, y = Seg_C, color = slope_angle), size = 2)+
-#     scale_color_manual(name = "Slope Angle", values = hc)+
-#     ggtitle(df_Seg.2$site[df_Seg.2$n_sample_rank==i])
-# }
-
-# use function in lappy to make lots of plots (clear plot list first)
-
-# lapply(sort(unique(df_Seg.2$n_sample_rank)), \(i) df_Seg.2%>%filter(n_sample_rank==i)%>%p.fun(.))
-
-# now looking at the expanded plots for each site, I feel that
-# non really could be justified as complex! it feels like the breakpoint
-# analysis lines aren't 'real'
-
-# My first thought is to color the CQ points based on season, AMC, etc
-# this is so overwhleming. 
-
-# I think I'm going to pause here in the analysis, and carry on with the
-# other constituents. Once I have those up to this point I can check in with Chuck and Steve
+#   )+
+#   geom_rect(data = df_Seg.2%>%distinct(df_Seg.2$site, .keep_all = T), aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = USGS.LU.Adjusted), alpha = .35)+
+#   scale_fill_manual(name = "USGS Landuse\n(Adjusted)", values = c("red", "blue","yellow", "green"))
+# 
+# # p
+# 
+# # export df_Seg.2:
+# 
+# # save(df_Seg.2, file = 'Processed_Data/TP.df_Seg.2.Rdata')
+# 
+# # based on this plot, I think I need to zoom in on each one:
+# 
+# # create a plotting function for each site:
+# 
+# # p.fun<-function(df){
+# #   ggplot(df, aes(x = log(Q_real), y = log(C)))+
+# #     geom_point(aes(color = Type))+
+# #     scale_color_manual(name = "CQ Type", values = c("red", "blue", "green"))+
+# #     geom_smooth(method = 'lm')+
+# #     new_scale_color() +
+# #     geom_line(aes(x = Q, y = Seg_C), size = 2.5, color = 'black')+
+# #     geom_line(aes(x = Q, y = Seg_C, color = slope_angle), size = 2)+
+# #     scale_color_manual(name = "Slope Angle", values = hc)+
+# #     ggtitle(df_Seg.2$site[df_Seg.2$n_sample_rank==i])
+# # }
+# 
+# # use function in lappy to make lots of plots (clear plot list first)
+# 
+# # lapply(sort(unique(df_Seg.2$n_sample_rank)), \(i) df_Seg.2%>%filter(n_sample_rank==i)%>%p.fun(.))
+# 
+# # now looking at the expanded plots for each site, I feel that
+# # non really could be justified as complex! it feels like the breakpoint
+# # analysis lines aren't 'real'
+# 
+# # My first thought is to color the CQ points based on season, AMC, etc
+# # this is so overwhleming. 
+# 
+# # I think I'm going to pause here in the analysis, and carry on with the
+# # other constituents. Once I have those up to this point I can check in with Chuck and Steve
 
 
 
@@ -1665,60 +1673,60 @@ p<-ggplot(df_Seg.2, aes(x = log(Q_real), y = log(C)))+
 
 #### Grouping CQ curves using top 50 ####
 
-# determine the median flow rate for each sites CQ observations: to do this:
-
-df.TP_CQ.top50<-split(df.TP_CQ, f = df.TP_CQ$Name)%>% # split the df into list of dfs for each site, 
-  lapply(., \(i) i%>%filter(X_00060_00003>median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
-  bind_rows(.) # bind back into single dataframe:
-
-# now run through grouping CQ workflow with this truncated df:
-
-l.TP_CQ<-df.TP_CQ.top50%>%split(., .$Name) # resplit the df into list:
-l.TP_CQ.lm<-lapply(l.TP_CQ, \(i) lm(log_C~log_Q, data=i)) # create lm models for each site:
-TP_CQ.coef<-as.data.frame(bind_rows(lapply(l.TP_CQ.lm, \(i) summary(i)$coefficients[,1]), .id = 'site_no'))%>%rename(Intercept = 2, Slope = 3) # save the model coef ad pvals:
-TP_CQ.pvals<-as.data.frame(bind_rows(lapply(l.TP_CQ.lm, \(i) summary(i)$coefficients[,4]), .id = 'site_no'))%>%rename(Intercept.pval = 2, Slope.pval = 3) # save the pvalues 
-df.lm.top50<-left_join(TP_CQ.coef,TP_CQ.pvals,by='site_no')%>%left_join(., df.TP_CQ%>%select(Name, n_sample_rank)%>%distinct(., .keep_all = T), by = c('site_no' = 'Name')) # merge the two dfs:
-df.lm.top50<-mutate(df.lm.top50, Type_top50 = ifelse(Slope.pval>0.05, 'Stationary', ifelse(Slope>0, 'Mobilization', 'Dilution'))) # add column for CQ type:
-df.TP_CQ.top50<-left_join(df.TP_CQ.top50,df.lm.top50%>%select(site_no, Type_top50),by=c('Name'='site_no')) # merge CQ type labels to the df for plotting
-
-# here is where it changes: add another column for the y coordinates of the OLS line for just the top 50 percentile:
-
-temp<-lapply(seq_along(l.TP_CQ.lm), \(i) data.frame(Seg_C_log_top50 = fitted(l.TP_CQ.lm[[i]]), l.TP_CQ[[i]]$sample_dt))%>%
-  purrr::set_names(names(l.TP_CQ.lm))%>%
-  bind_rows(., .id = 'Name')%>%
-  rename(site = Name, Date = 3)%>%
-  mutate(Date = as.Date(Date))
-
-# now add upper 50 CQ type and Seg_C_log_top50 columns to df_Seg.2:
-
-df_Seg.2<-left_join(df_Seg.2, df.lm.top50%>%select(site_no, Type_top50), by = c('site'='site_no'))%>%
-  mutate(Date = as.Date(Date))%>%
-  left_join(., temp, by = c('site', 'Date'))
-
-# make plot:
-
-p<-ggplot(df_Seg.2, aes(x = log(Q_real), y = log(C)))+
-  geom_point()+
-  geom_smooth(aes(color = Type),method = 'lm')+
-  scale_color_manual(name = "Full CQ Type", values = c("red", "blue", "green"))+
-  ylab('log(TP)')+
-  new_scale_color() +
-  geom_line(aes(x = log(Q_real), y = Seg_C_log_top50), size = 2.5, color = 'black')+
-  geom_line(aes(x = log(Q_real), y = Seg_C_log_top50, color = Type_top50), size = 2)+
-  scale_color_manual(name = "Top 50 CQ Type", values = c("blue", "green"))+
-  facet_wrap(dplyr::vars(n_sample_rank), scales = 'free')+
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_blank()
-  )
-
-# p
-
-# export df_Seg.2 for use in FingerLakesPresentation.R
-
-# save(df_Seg.2, file = 'Processed_Data/TP.df_Seg.2.w_top50.Rdata')
-
-#
+# # determine the median flow rate for each sites CQ observations: to do this:
+# 
+# df.TP_CQ.top50<-split(df.TP_CQ, f = df.TP_CQ$Name)%>% # split the df into list of dfs for each site, 
+#   lapply(., \(i) i%>%filter(X_00060_00003>median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
+#   bind_rows(.) # bind back into single dataframe:
+# 
+# # now run through grouping CQ workflow with this truncated df:
+# 
+# l.TP_CQ<-df.TP_CQ.top50%>%split(., .$Name) # resplit the df into list:
+# l.TP_CQ.lm<-lapply(l.TP_CQ, \(i) lm(log_C~log_Q, data=i)) # create lm models for each site:
+# TP_CQ.coef<-as.data.frame(bind_rows(lapply(l.TP_CQ.lm, \(i) summary(i)$coefficients[,1]), .id = 'site_no'))%>%rename(Intercept = 2, Slope = 3) # save the model coef ad pvals:
+# TP_CQ.pvals<-as.data.frame(bind_rows(lapply(l.TP_CQ.lm, \(i) summary(i)$coefficients[,4]), .id = 'site_no'))%>%rename(Intercept.pval = 2, Slope.pval = 3) # save the pvalues 
+# df.lm.top50<-left_join(TP_CQ.coef,TP_CQ.pvals,by='site_no')%>%left_join(., df.TP_CQ%>%select(Name, n_sample_rank)%>%distinct(., .keep_all = T), by = c('site_no' = 'Name')) # merge the two dfs:
+# df.lm.top50<-mutate(df.lm.top50, Type_top50 = ifelse(Slope.pval>0.05, 'Stationary', ifelse(Slope>0, 'Mobilization', 'Dilution'))) # add column for CQ type:
+# df.TP_CQ.top50<-left_join(df.TP_CQ.top50,df.lm.top50%>%select(site_no, Type_top50),by=c('Name'='site_no')) # merge CQ type labels to the df for plotting
+# 
+# # here is where it changes: add another column for the y coordinates of the OLS line for just the top 50 percentile:
+# 
+# temp<-lapply(seq_along(l.TP_CQ.lm), \(i) data.frame(Seg_C_log_top50 = fitted(l.TP_CQ.lm[[i]]), l.TP_CQ[[i]]$sample_dt))%>%
+#   purrr::set_names(names(l.TP_CQ.lm))%>%
+#   bind_rows(., .id = 'Name')%>%
+#   rename(site = Name, Date = 3)%>%
+#   mutate(Date = as.Date(Date))
+# 
+# # now add upper 50 CQ type and Seg_C_log_top50 columns to df_Seg.2:
+# 
+# df_Seg.2<-left_join(df_Seg.2, df.lm.top50%>%select(site_no, Type_top50), by = c('site'='site_no'))%>%
+#   mutate(Date = as.Date(Date))%>%
+#   left_join(., temp, by = c('site', 'Date'))
+# 
+# # make plot:
+# 
+# p<-ggplot(df_Seg.2, aes(x = log(Q_real), y = log(C)))+
+#   geom_point()+
+#   geom_smooth(aes(color = Type),method = 'lm')+
+#   scale_color_manual(name = "Full CQ Type", values = c("red", "blue", "green"))+
+#   ylab('log(TP)')+
+#   new_scale_color() +
+#   geom_line(aes(x = log(Q_real), y = Seg_C_log_top50), size = 2.5, color = 'black')+
+#   geom_line(aes(x = log(Q_real), y = Seg_C_log_top50, color = Type_top50), size = 2)+
+#   scale_color_manual(name = "Top 50 CQ Type", values = c("blue", "green"))+
+#   facet_wrap(dplyr::vars(n_sample_rank), scales = 'free')+
+#   theme(
+#     strip.background = element_blank(),
+#     strip.text.x = element_blank()
+#   )
+# 
+# # p
+# 
+# # export df_Seg.2 for use in FingerLakesPresentation.R
+# 
+# # save(df_Seg.2, file = 'Processed_Data/TP.df_Seg.2.w_top50.Rdata')
+# 
+# #
 
 
 
@@ -1745,33 +1753,33 @@ p<-ggplot(df_Seg.2, aes(x = log(Q_real), y = log(C)))+
 
 #### Triangle plot ####
 
-# set up dataframe:
-
-# add percent ag and urban to df.lm:
-
-df.tri<-left_join(df.lm, df.NLCD06%>%select(Name, DEVNLCD06, PLANTNLCD06), by = c('site_no'='Name'))%>%select(site_no, Slope, Type, DEVNLCD06, PLANTNLCD06)%>%mutate(Slope = round(Slope, 2), DEVNLCD06=round(DEVNLCD06, 2), PLANTNLCD06=round(PLANTNLCD06, 2))
-
-# create plot:
-
-p<-ggplot(df.tri, aes(x=DEVNLCD06, y=PLANTNLCD06)) +
-  geom_point(aes(shape=as.factor(Type), fill=abs(Slope)), size = 4) +
-  scale_shape_manual(values = c("Mobilization" = 24, "Dilution" = 25, "Stationary" = 22),
-                     guide = guide_legend(override.aes = list(fill = "pink")))+
-  scale_fill_gradient(low = "yellow", high = "red")+
-  xlab('Percent Developed')+
-  ylab('Percent Agriculture')+
-  ggtitle(paste(ncode, 'CQ type and slope magnitude as a function of percent Ag and Developed Land'))
-
-p$labels$fill <- "Slope Magnitude"
-p$labels$shape <- "CQ Type"
-
-p
-
-# want to recreate this plot in Code/FingerLakesPresentation.R so exporting df.tri:
-
-# save(df.tri, file = 'Processed_Data/df.tri.Rdata')
-
-#
+# # set up dataframe:
+# 
+# # add percent ag and urban to df.lm:
+# 
+# df.tri<-left_join(df.lm, df.NLCD06%>%select(Name, DEVNLCD06, PLANTNLCD06), by = c('site_no'='Name'))%>%select(site_no, Slope, Type, DEVNLCD06, PLANTNLCD06)%>%mutate(Slope = round(Slope, 2), DEVNLCD06=round(DEVNLCD06, 2), PLANTNLCD06=round(PLANTNLCD06, 2))
+# 
+# # create plot:
+# 
+# p<-ggplot(df.tri, aes(x=DEVNLCD06, y=PLANTNLCD06)) +
+#   geom_point(aes(shape=as.factor(Type), fill=abs(Slope)), size = 4) +
+#   scale_shape_manual(values = c("Mobilization" = 24, "Dilution" = 25, "Stationary" = 22),
+#                      guide = guide_legend(override.aes = list(fill = "pink")))+
+#   scale_fill_gradient(low = "yellow", high = "red")+
+#   xlab('Percent Developed')+
+#   ylab('Percent Agriculture')+
+#   ggtitle(paste(ncode, 'CQ type and slope magnitude as a function of percent Ag and Developed Land'))
+# 
+# p$labels$fill <- "Slope Magnitude"
+# p$labels$shape <- "CQ Type"
+# 
+# p
+# 
+# # want to recreate this plot in Code/FingerLakesPresentation.R so exporting df.tri:
+# 
+# # save(df.tri, file = 'Processed_Data/df.tri.Rdata')
+# 
+# #
 
 
 
@@ -1800,29 +1808,29 @@ p
 
 #### Triangle plot with top 50 ####
 
-df.tri<-left_join(df.lm.top50, df.NLCD06%>%select(Name, DEVNLCD06, PLANTNLCD06), by = c('site_no'='Name'))%>%select(site_no, Slope, Type_top50, DEVNLCD06, PLANTNLCD06)%>%mutate(Slope = round(Slope, 2), DEVNLCD06=round(DEVNLCD06, 2), PLANTNLCD06=round(PLANTNLCD06, 2))
-
-# create plot:
-
-p<-ggplot(df.tri, aes(x=DEVNLCD06, y=PLANTNLCD06)) +
-  geom_point(aes(shape=as.factor(Type_top50), fill=abs(Slope)), size = 4) +
-  scale_shape_manual(values = c("Mobilization" = 24, "Dilution" = 25, "Stationary" = 22),
-                     guide = guide_legend(override.aes = list(fill = "pink")))+
-  scale_fill_gradient(low = "yellow", high = "red")+
-  xlab('Percent Developed')+
-  ylab('Percent Agriculture')+
-  ggtitle(paste(ncode, 'CQ type and slope magnitude as a function of percent Ag and Developed Land'))
-
-p$labels$fill <- "Slope Magnitude"
-p$labels$shape <- "CQ Type"
-
-p
-
-# want to recreate this plot in Code/FingerLakesPresentation.R so exporting df.tri:
-
-# save(df.tri, file = 'Processed_Data/df.tri.Rdata')
-
-#
+# df.tri<-left_join(df.lm.top50, df.NLCD06%>%select(Name, DEVNLCD06, PLANTNLCD06), by = c('site_no'='Name'))%>%select(site_no, Slope, Type_top50, DEVNLCD06, PLANTNLCD06)%>%mutate(Slope = round(Slope, 2), DEVNLCD06=round(DEVNLCD06, 2), PLANTNLCD06=round(PLANTNLCD06, 2))
+# 
+# # create plot:
+# 
+# p<-ggplot(df.tri, aes(x=DEVNLCD06, y=PLANTNLCD06)) +
+#   geom_point(aes(shape=as.factor(Type_top50), fill=abs(Slope)), size = 4) +
+#   scale_shape_manual(values = c("Mobilization" = 24, "Dilution" = 25, "Stationary" = 22),
+#                      guide = guide_legend(override.aes = list(fill = "pink")))+
+#   scale_fill_gradient(low = "yellow", high = "red")+
+#   xlab('Percent Developed')+
+#   ylab('Percent Agriculture')+
+#   ggtitle(paste(ncode, 'CQ type and slope magnitude as a function of percent Ag and Developed Land'))
+# 
+# p$labels$fill <- "Slope Magnitude"
+# p$labels$shape <- "CQ Type"
+# 
+# p
+# 
+# # want to recreate this plot in Code/FingerLakesPresentation.R so exporting df.tri:
+# 
+# # save(df.tri, file = 'Processed_Data/df.tri.Rdata')
+# 
+# #
 
 
 
@@ -2095,21 +2103,29 @@ tab_model(m.list, dv.labels = names(m.list), title = paste('Comparison of MLR mo
 
 
 
-#### PLSR ####
+#### ~PLSR~ ####
 
 # install.packages("pls")
 library(pls)
 library(nortest)
 library(flipFormat)
+library(caret)
 
 # run PLSR for 1 CQ metric: to do this:
 
 # set up df:
 
-df.OLS.I<-df.OLS_Sens[,c(2, 7:ncol(df.OLS_Sens))]%>%
+df.OLS.I<-df.OLS_Sens[,c(6, 7:ncol(df.OLS_Sens))]%>%
   drop_na(CSA_perc)%>%
   as.data.frame()%>%
   select_if(colSums(.) != 0)
+
+# standardize:
+
+df.OLS.I <- as.data.frame(lapply(df.OLS.I, scale, center = TRUE, scale = TRUE))
+  
+
+#### PLS package ####
 
 # test for normality:
 
@@ -2126,7 +2142,7 @@ df.norm.test<-lapply(df.OLS.I, lillie.test)%>% # use nortest::lillie.test in lap
 
 # run:
 
-test <- plsr(OLS.I ~ ., data = df.OLS.I, validation = "CV")
+test <- plsr(Yield ~ ., data = df.OLS.I, validation = "CV")
 
 # summary(test)
 
@@ -2169,27 +2185,36 @@ coef<-as.data.frame.table(coef(test))%>%
   select(Variable, Value, VIP)%>%
   arrange(desc(Value))
 
+#### Caret package ####
 
+# Build the model on training set
+set.seed(123)
 
+model <- train(
+  Yield ~ ., data = df.OLS.I, method = "rf",
+  scale = TRUE,
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 10
+)
 
-# now edo model with that many comps:
+# Plot model RMSE vs different values of components
 
-test <- plsr(OLS.I ~ ., ncomps = 13,data = df.OLS.I, validation = "CV")
+plot(model)
 
-plot(test)
+# Print the best tuning parameter ncomp that
+# minimize the cross-validation error, RMSE
 
+model$bestTune
 
+# Summarize the final model
 
-summary(test)
+summary(model$finalModel)
 
-#
+# get variable importance
 
-
-plot(test, ncomp = 2, asp = 1, line = TRUE)
-
-plot(test, plottype = "scores", comps = 1:5)
-
-
+v <- varImp(model,scale = TRUE)[["importance"]]
+v$Overall <- v$Overall / sum(v$Overall)
+v<-v%>%arrange(Overall)
 
 #
 
