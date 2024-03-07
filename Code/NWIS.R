@@ -518,17 +518,21 @@ df_Seg<-left_join(df_Seg, temp%>%select(site, n_sample_rank), by = 'site')%>%
 
 # ready to plot:
 
-# p<-ggplot(df_Seg, aes(x = log(Q_real), y = log(C)))+
-#   geom_point()+
-#   geom_smooth(method = 'lm')+
-#   geom_line(aes(x = Q, y = Seg_C), color = 'tomato')+
-#   facet_wrap(dplyr::vars(n_sample_rank), scales = 'free')+
-#   theme(
-#     strip.background = element_blank(),
-#     strip.text.x = element_blank()
-#   )
-# 
-# p
+temp<-df_Seg%>%filter(site==df.OLS$Name[1])
+
+
+
+ggplot(temp, aes(x = log(Q_real), y = log(C)))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_line(aes(x = Q, y = Seg_C), color = 'tomato')+
+  geom_vline(xintercept =log(median(temp$Q_real)), color='red')
+  facet_wrap(dplyr::vars(site), scales = 'free') #+
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
+
 
 # one last thing: lets look at a map of these:
 
@@ -574,41 +578,125 @@ df_Seg<-left_join(df_Seg, temp%>%select(site, n_sample_rank), by = 'site')%>%
 
 #### Setting up Response Variables ####
 
-# CQ metrics:
+# set up df for this section:
 
-# OLS intercept and slope for single slope model:
-
-df.OLS<-df.TP_CQ%>%
+df.RP <- df.TP_CQ%>%
   rename(Name = site_no)%>%
   select(Name, sample_dt,result_va, X_00060_00003)%>%
   mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
   filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))%>%
+  filter(is.finite(log_Q))
+
+# CQ metrics:
+
+# OLS intercept and slope for single slope model:
+
+df.OLS<-df.RP%>%
   group_by(Name)%>%
   do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
-  summarize(., OLS.I.1.slope = OLS.co[1], 
-            OLS.S.1.slope = OLS.co[2])
+  summarize(., OLS.Int.1s = OLS.co[1], 
+            OLS.Slope.1s = OLS.co[2])
   }) %>%
   ungroup
 
 # Sens intercept and slope for single slope model:
 
-df.Sens<-df.TP_CQ%>%
-  rename(Name = site_no)%>%
-  select(Name, sample_dt,result_va, X_00060_00003)%>%
-  mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-  filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))%>%
+df.Sens<-df.RP%>%
   group_by(Name)%>%
   do({ Sens.co<-zyp.sen(log_C~log_Q,.)
-  summarize(., Sen.I.1.slope = Sens.co$coefficients[[1]],
-            Sen.S.1.slope= Sens.co$coefficients[[2]])
+  summarize(., Sen.Int.1s = Sens.co$coefficients[[1]],
+            Sen.Slope.1s= Sens.co$coefficients[[2]])
   }) %>%
   ungroup
 
 # OLS intercept and slope for two slope model:
 
-# threshold by median flow rate:
+# threshold by median flow rate: to do this:
+
+# create two df.OLS,one for pre and post median flow rate:
+
+temp.pre<-df.RP%>%
+  group_by(Name)%>%
+  filter(X_00060_00003<median(X_00060_00003))%>%
+  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+  summarize(., OLS.Int.2s_medQ_pre = OLS.co[1], 
+            OLS.Slope.2s_medQ_pre = OLS.co[2])
+  }) %>%
+  ungroup
+
+temp.post<-df.RP%>%
+  group_by(Name)%>%
+  filter(X_00060_00003>=median(X_00060_00003))%>%
+  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+  summarize(., OLS.Int.2s_medQ_post = OLS.co[1], 
+            OLS.Slope.2s_medQ_post = OLS.co[2])
+  }) %>%
+  ungroup
+
+# combine pre and post:
+
+temp <- left_join(temp.pre,temp.post,by='Name')
+
+# merge with df.OLS:
+
+df.OLS <- left_join(df.OLS,temp,by='Name')
+
+# check: to do this:
+
+# add columns to df_Seg for pre and post:
+
+df.pre<-df.RP%>%
+  group_by(Name)%>%
+  filter(X_00060_00003<median(X_00060_00003))%>%
+  group_split()%>%
+  purrr::set_names(sort(unique(df.RP$Name)))%>%
+  lapply(., \(i) lm(log_C~log_Q,i))%>%
+  lapply(., \(i) data.frame(Q =i$model$log_Q, Seg_C.medQ=i$fitted.values))%>%
+  bind_rows(., .id = 'Name')
+
+df.post<-df.RP%>%
+  group_by(Name)%>%
+  filter(X_00060_00003>=median(X_00060_00003))%>%
+  group_split()%>%
+  purrr::set_names(sort(unique(df.RP$Name)))%>%
+  lapply(., \(i) lm(log_C~log_Q,i))%>%
+  lapply(., \(i) data.frame(Q =i$model$log_Q, Seg_C.medQ=i$fitted.values))%>%
+  bind_rows(., .id = 'Name')
+
+# combine dfs:
+
+df.medQ<-bind_rows(df.pre,df.post)%>%left_join(.,df.RP%>%select(Name,sample_))
+
+row.names(df.medQ)<-1:nrow(df.medQ)
+
+# combine with df_Seg:
+
+df_Seg.RP<-left_join(df.medQ, df_Seg)
+  
+temp<-df_Seg.RP%>%filter(site==df.OLS$Name[1])
+
+ggplot(temp, aes(x = log(Q_real), y = log(C)))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_line(aes(x = , y = Seg_C.medQ), color = 'tomato')+
+  geom_vline(xintercept =log(median(temp$Q_real)), color='red')
+facet_wrap(dplyr::vars(site), scales = 'free') #+
+theme(
+  strip.background = element_blank(),
+  strip.text.x = element_blank()
+)
+
+
+
+
+
+
+
+
+
+
+
+
 
 df.TP_CQ.top50<-split(df.TP_CQ, f = df.TP_CQ$site_no)%>% # split the df into list of dfs for each site,
   lapply(., \(i) i%>%filter(X_00060_00003>median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
