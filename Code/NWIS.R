@@ -518,20 +518,16 @@ df_Seg<-left_join(df_Seg, temp%>%select(site, n_sample_rank), by = 'site')%>%
 
 # ready to plot:
 
-temp<-df_Seg%>%filter(site==df.OLS$Name[1])
-
-
-
-ggplot(temp, aes(x = log(Q_real), y = log(C)))+
-  geom_point()+
-  geom_smooth(method = 'lm')+
-  geom_line(aes(x = Q, y = Seg_C), color = 'tomato')+
-  geom_vline(xintercept =log(median(temp$Q_real)), color='red')
-  facet_wrap(dplyr::vars(site), scales = 'free') #+
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_blank()
-  )
+# ggplot(df_Seg, aes(x = log(Q_real), y = log(C)))+
+#   geom_point()+
+#   geom_smooth(method = 'lm')+
+#   geom_line(aes(x = Q, y = Seg_C), color = 'tomato')+
+#   geom_vline(xintercept =log(median(temp$Q_real)), color='red')
+#   facet_wrap(dplyr::vars(site), scales = 'free') #+
+#   theme(
+#     strip.background = element_blank(),
+#     strip.text.x = element_blank()
+#   )
 
 
 # one last thing: lets look at a map of these:
@@ -587,9 +583,9 @@ df.RP <- df.TP_CQ%>%
   filter(is.finite(log_C))%>%
   filter(is.finite(log_Q))
 
-# CQ metrics:
+# 1) CQ metrics:
 
-# OLS intercept and slope for single slope model:
+# 1.1) OLS intercept and slope for single slope model:
 
 df.OLS<-df.RP%>%
   group_by(Name)%>%
@@ -599,7 +595,7 @@ df.OLS<-df.RP%>%
   }) %>%
   ungroup
 
-# Sens intercept and slope for single slope model:
+# 1.2) Sens intercept and slope for single slope model:
 
 df.Sens<-df.RP%>%
   group_by(Name)%>%
@@ -609,9 +605,7 @@ df.Sens<-df.RP%>%
   }) %>%
   ungroup
 
-# OLS intercept and slope for two slope model:
-
-# threshold by median flow rate: to do this:
+# 1.3) OLS intercept and slope for two slope model: threshold by median flow rate: to do this:
 
 # create two df.OLS,one for pre and post median flow rate:
 
@@ -639,52 +633,217 @@ temp <- left_join(temp.pre,temp.post,by='Name')
 
 # merge with df.OLS:
 
-df.OLS <- left_join(df.OLS,temp,by='Name')
+df.OLS <- left_join(df.OLS,temp,by='Name')%>%as.data.frame()
 
-# check: to do this:
+# check: I want to plot CQ curves with pre and post median OLS lines. to do this:
 
-# add columns to df_Seg for pre and post:
+# set up list of df for CQ for each site:
 
-df.pre<-df.RP%>%
+l.RP<-split(df.RP, f=df.RP$Name)
+
+# set up lists of lm for pre and post:
+
+l.pre<-df.RP%>%
   group_by(Name)%>%
   filter(X_00060_00003<median(X_00060_00003))%>%
   group_split()%>%
   purrr::set_names(sort(unique(df.RP$Name)))%>%
-  lapply(., \(i) lm(log_C~log_Q,i))%>%
-  lapply(., \(i) data.frame(Q =i$model$log_Q, Seg_C.medQ=i$fitted.values))%>%
-  bind_rows(., .id = 'Name')
+  lapply(., \(i) lm(log_C~log_Q,i))
 
-df.post<-df.RP%>%
+l.post<-df.RP%>%
   group_by(Name)%>%
   filter(X_00060_00003>=median(X_00060_00003))%>%
   group_split()%>%
   purrr::set_names(sort(unique(df.RP$Name)))%>%
-  lapply(., \(i) lm(log_C~log_Q,i))%>%
-  lapply(., \(i) data.frame(Q =i$model$log_Q, Seg_C.medQ=i$fitted.values))%>%
-  bind_rows(., .id = 'Name')
+  lapply(., \(i) lm(log_C~log_Q,i))
 
-# combine dfs:
+# create df of median Q for each site:
 
-df.medQ<-bind_rows(df.pre,df.post)%>%left_join(.,df.RP%>%select(Name,sample_))
+df.median.Q<-df.TP_CQ%>%group_by(site_no)%>%summarise(median_Q=median(X_00060_00003))
 
-row.names(df.medQ)<-1:nrow(df.medQ)
+# make sure list orders are the same:
 
-# combine with df_Seg:
+names(l.pre)==names(l.post)
+names(l.pre)==names(l.RP)
+names(l.pre)==df.median.Q$site_no
 
-df_Seg.RP<-left_join(df.medQ, df_Seg)
-  
-temp<-df_Seg.RP%>%filter(site==df.OLS$Name[1])
+# use models in ifelse to predict concentration column:
 
-ggplot(temp, aes(x = log(Q_real), y = log(C)))+
+l.test<-lapply(seq_along(l.post), \(i) l.RP[[i]]%>%mutate(Seg_C.medQ = ifelse(Q < df.median.Q$median_Q[i], 
+          predict(l.pre[[i]], data.frame(log_Q = l.RP[[i]]$log_Q)),
+          predict(l.post[[i]], data.frame(log_Q = l.RP[[i]]$log_Q))
+))%>%
+  mutate(Seg_type = ifelse(Q < df.median.Q$median_Q[i],
+                           'Pre_Q_med',
+                           'Post_Q_med'))
+)%>%purrr::set_names(names(l.RP))
+
+# check with plot:
+
+i <- 2
+
+ggplot(l.test[[i]], aes(x = log_Q, y = log_C))+
   geom_point()+
   geom_smooth(method = 'lm')+
-  geom_line(aes(x = , y = Seg_C.medQ), color = 'tomato')+
-  geom_vline(xintercept =log(median(temp$Q_real)), color='red')
-facet_wrap(dplyr::vars(site), scales = 'free') #+
-theme(
-  strip.background = element_blank(),
-  strip.text.x = element_blank()
-)
+  geom_line(aes(x = log_Q, y = Seg_C.medQ, color = Seg_type))
+
+df.OLS[i,]
+
+# looks good!
+
+# 1.4) OLS intercept and slope for two slope model: threshold by median concentration: to do this:
+
+# create two df.OLS,one for pre and post median conc:
+
+temp.pre<-df.RP%>%
+  group_by(Name)%>%
+  filter(C<median(C))%>%
+  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+  summarize(., OLS.Int.2s_medC_pre = OLS.co[1], 
+            OLS.Slope.2s_medC_pre = OLS.co[2])
+  }) %>%
+  ungroup
+
+temp.post<-df.RP%>%
+  group_by(Name)%>%
+  filter(C>=median(C))%>%
+  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+  summarize(., OLS.Int.2s_medC_post = OLS.co[1], 
+            OLS.Slope.2s_medC_post = OLS.co[2])
+  }) %>%
+  ungroup
+
+# combine pre and post:
+
+temp <- left_join(temp.pre,temp.post,by='Name')
+
+# merge with df.OLS:
+
+df.OLS <- left_join(df.OLS,temp,by='Name')%>%as.data.frame()
+
+# check: 
+
+# set up list of df for CQ for each site:
+
+l.RP<-split(df.RP, f=df.RP$Name)
+
+# set up lists of lm for pre and post:
+
+l.pre<-df.RP%>%
+  group_by(Name)%>%
+  filter(C<median(C))%>%
+  group_split()%>%
+  purrr::set_names(sort(unique(df.RP$Name)))%>%
+  lapply(., \(i) lm(log_C~log_Q,i))
+
+l.post<-df.RP%>%
+  group_by(Name)%>%
+  filter(C>=median(C))%>%
+  group_split()%>%
+  purrr::set_names(sort(unique(df.RP$Name)))%>%
+  lapply(., \(i) lm(log_C~log_Q,i))
+
+# create df of median Q for each site:
+
+df.median.C<-df.TP_CQ%>%group_by(site_no)%>%summarise(median_C=median(result_va))
+
+# make sure list orders are the same:
+
+names(l.pre)==names(l.post)
+names(l.pre)==names(l.RP)
+names(l.pre)==df.median.Q$site_no
+
+# use models in ifelse to predict concentration column:
+
+l.test<-lapply(seq_along(l.post), \(i) l.RP[[i]]%>%mutate(Seg_C.medC = ifelse(C < df.median.C$median_C[i], 
+                                                                              predict(l.pre[[i]], data.frame(log_Q = l.RP[[i]]$log_Q)),
+                                                                              predict(l.post[[i]], data.frame(log_Q = l.RP[[i]]$log_Q))
+))%>%
+  mutate(Seg_type = ifelse(C < df.median.C$median_C[i],
+                           'Pre_C_med',
+                           'Post_C_med'))
+)%>%purrr::set_names(names(l.RP))
+
+# check with plot:
+
+i <- 1
+
+ggplot(l.test[[i]], aes(x = log_Q, y = log_C))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_line(aes(x = log_Q, y = Seg_C.medC, color = Seg_type))
+
+df.OLS[i,]
+
+# I want to look at facet plot of all these:
+
+x <- bind_rows(l.test, .id = "Name")
+
+ggplot(x, aes(x = log_Q, y = log_C))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_line(aes(x = log_Q, y = Seg_C.medC, color = Seg_type))+
+  facet_wrap('Name', scales = 'free') +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
+
+# I just realized that separation by C doesnt scale well in this workflow
+
+# 1.5) baseflow separation:
+
+library(grwat)
+
+# example site in workflow:
+
+# Calculate baseflow using Jakeman approach
+
+hdata = df.NWIS.Q %>%
+  filter(site_no == df.OLS$Name[1])%>%
+  mutate(Qbase = gr_baseflow(X_00060_00003, method = 'lynehollick', a = .925, passes = 3),
+         Date=as.Date(Date))%>%
+  mutate(Q_type=ifelse(X_00060_00003<=Qbase, 'Baseflow', 'Stormflow'))
+
+# Visualize for 2020 year
+ggplot(hdata) +
+  geom_area(aes(Date, X_00060_00003), fill = 'steelblue', color = 'black') +
+  geom_area(aes(Date, Qbase), fill = 'orangered', color = 'black')+
+  geom_point(aes(Date, X_00060_00003, color=Q_type))+
+  scale_x_date(limits = c(ymd(20070101), ymd(20071231)))
+
+# pretty sick
+
+# now scale up:
+
+df.Q.w.base <- df.NWIS.Q%>%
+  filter(site_no %in% df.RP$Name)%>%
+  split(., f=.$site_no)%>%
+  lapply(., \(i) i%>%mutate(Q_base = gr_baseflow(X_00060_00003, method = 'lynehollick', a = 0.925, passes = 3)))%>%
+  lapply(., \(i) i%>%mutate(Q_type=ifelse(X_00060_00003<=Q_base, 'Baseflow', 'Stormflow')))%>%
+  bind_rows(.)
+
+# join this to df.RP:
+
+temp <- left_join(df.RP, df.Q.w.base%>%select(site_no,Date,Q_type), by = c('Name'='site_no', 'sample_dt'='Date'))
+
+# plots:
+
+i <- 1
+
+ggplot(temp, aes(x = log_Q, y = log_C,color = Q_type))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  facet_wrap('Name', scales = 'free') +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
+
+# now add OLS columns for Int and slope of base and Storm flow
+
+#
+
 
 
 
@@ -881,6 +1040,14 @@ l.C_daily<-lapply(seq_along(l.avg_ann_hydro), \(i) l.avg_ann_hydro[[i]]%>%mutate
                                                                                             )))%>%purrr::set_names(names(l.avg_ann_hydro))
 
 # I think this worked!! cause if I sub in NA for the else line in mutate, those rows are NA!
+
+# check:
+
+ggplot(l.C_daily[[30]], aes(x = log(mean_Q), y = log(C)))+
+  geom_point()+
+  geom_smooth(method = 'lm') #+
+  geom_line(l.avg_ann_hydro[[11]], aes(x = log_Q, y = Seg_C.medQ, color = 'tomato'))
+
 
 # step 3. multiply predicted average daily C by daily Q to get daily load, sum up, then convert to yield. To do this:
 
