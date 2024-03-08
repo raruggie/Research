@@ -578,7 +578,7 @@ df_Seg<-left_join(df_Seg, temp%>%select(site, n_sample_rank), by = 'site')%>%
 
 df.RP <- df.TP_CQ%>%
   rename(Name = site_no)%>%
-  select(Name, sample_dt,result_va, X_00060_00003)%>%
+  select(Name, sample_dt,result_va, X_00060_00003, n_sample_rank)%>%
   mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
   filter(is.finite(log_C))%>%
   filter(is.finite(log_Q))
@@ -693,7 +693,7 @@ df.OLS[i,]
 
 # 1.4) OLS intercept and slope for two slope model: threshold by median concentration: to do this:
 
-# create two df.OLS,one for pre and post median conc:
+# create two df.OLS, one for pre and post median conc:
 
 temp.pre<-df.RP%>%
   group_by(Name)%>%
@@ -797,7 +797,7 @@ library(grwat)
 
 # example site in workflow:
 
-# Calculate baseflow using Jakeman approach
+# Calculate baseflow:
 
 hdata = df.NWIS.Q %>%
   filter(site_no == df.OLS$Name[1])%>%
@@ -805,7 +805,8 @@ hdata = df.NWIS.Q %>%
          Date=as.Date(Date))%>%
   mutate(Q_type=ifelse(X_00060_00003<=Qbase, 'Baseflow', 'Stormflow'))
 
-# Visualize for 2020 year
+# Visualize for a year
+
 ggplot(hdata) +
   geom_area(aes(Date, X_00060_00003), fill = 'steelblue', color = 'black') +
   geom_area(aes(Date, Qbase), fill = 'orangered', color = 'black')+
@@ -825,22 +826,52 @@ df.Q.w.base <- df.NWIS.Q%>%
 
 # join this to df.RP:
 
-temp <- left_join(df.RP, df.Q.w.base%>%select(site_no,Date,Q_type), by = c('Name'='site_no', 'sample_dt'='Date'))
+df.RP <- left_join(df.RP, df.Q.w.base%>%select(site_no,Date,Q_type), by = c('Name'='site_no', 'sample_dt'='Date'))
+
+# now add OLS columns for Int and slope of base and Storm flow:
+
+# create two df.OLS, one for base and storm:
+
+temp.base<-df.RP%>%
+  group_by(Name)%>%
+  filter(Q_type == 'Baseflow')%>%
+  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+  summarize(., OLS.Int.2s_Baseflow_simple = OLS.co[1], 
+            OLS.Slope.2s__Baseflow_simple = OLS.co[2])
+  }) %>%
+  ungroup
+
+temp.storm<-df.RP%>%
+  group_by(Name)%>%
+  filter(Q_type == 'Stormflow')%>%
+  do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
+  summarize(., OLS.Int.2s_Stormflow_simple = OLS.co[1], 
+            OLS.Slope.2s_Stormflow_simple = OLS.co[2])
+  }) %>%
+  ungroup
+
+# combine base and storm:
+
+temp <- left_join(temp.base, temp.storm,by='Name')
+
+# merge with df.OLS:
+
+df.OLS <- left_join(df.OLS,temp,by='Name')%>%as.data.frame()
+
+# check with plot:
 
 # plots:
 
-i <- 1
-
-ggplot(temp, aes(x = log_Q, y = log_C,color = Q_type))+
+ggplot(df.RP%>%filter(Name == df.OLS$Name[1]), aes(x = log_Q, y = log_C,color = Q_type))+
   geom_point()+
   geom_smooth(method = 'lm')+
-  facet_wrap('Name', scales = 'free') +
+  facet_wrap('n_sample_rank', scales = 'free') +
   theme(
     strip.background = element_blank(),
     strip.text.x = element_blank()
   )
 
-# now add OLS columns for Int and slope of base and Storm flow
+df.OLS[1,12:15]
 
 #
 
