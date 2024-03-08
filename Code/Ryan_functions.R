@@ -1116,3 +1116,25 @@ fun.CQ.BP<-function(i, df.CQ){
   
 }
 
+# function for WRTDS:
+
+fun.R.modelEstimation<-function(eList){
+  
+  tryCatch({
+    
+    eList<-modelEstimation(eList)
+    
+  },error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
+  
+  return(eList)
+  
+  
+}
+
+
+
+
+
+
+
+

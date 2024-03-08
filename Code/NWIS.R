@@ -583,9 +583,25 @@ df.RP <- df.TP_CQ%>%
   filter(is.finite(log_C))%>%
   filter(is.finite(log_Q))
 
-# 1) CQ metrics:
+l.Q<-df.NWIS.Q%>%
+  filter(site_no %in% df.RP$Name)%>%
+  mutate(Date = as.Date(Date))%>%
+  mutate(year = year(Date), Date = as.Date(format(Date, "%m-%d"), "%m-%d"))%>%
+  group_by(site_no, Date)%>%
+  summarize(mean_Q = mean(X_00060_00003, na.rm= T))%>%
+  split(., f = .$site_no)
 
-# 1.1) OLS intercept and slope for single slope model:
+l.Q.v<-lapply(l.Q, \(i) i$mean_Q)
+
+l.DA<-readNWISsite(siteNumbers = names(l.Q))%>%select(site_no, drain_area_va)%>%split(., .$site_no)%>%lapply(., \(i) i$drain_area_va)
+
+unit_conversion=28.3168*86400*(1/1000)*(1/1000)*(1/258.999) # mg/L * ft^3/sec * 28.3168 L/ft3 * 86400 sec /day * 1g/1000mg * 1kg/1000g * 1/mi^2 * 1mi^2/258.999 ha = kg/ha/day
+
+# 1) CQ metrics and associated Average Annual Nutrient Yields:
+
+# 1.1) OLS intercept, slope, AANY for single slope model:
+
+# slope and intercept:
 
 df.OLS<-df.RP%>%
   group_by(Name)%>%
@@ -595,19 +611,25 @@ df.OLS<-df.RP%>%
   }) %>%
   ungroup
 
-# 1.2) Sens intercept and slope for single slope model:
+# AANY:
 
-df.Sens<-df.RP%>%
-  group_by(Name)%>%
-  do({ Sens.co<-zyp.sen(log_C~log_Q,.)
-  summarize(., Sen.Int.1s = Sens.co$coefficients[[1]],
-            Sen.Slope.1s= Sens.co$coefficients[[2]])
-  }) %>%
-  ungroup
+l.lm <- df.RP%>%
+  split(., f=.$Name)%>%
+  lapply(., \(i) lm(log_C ~ log_Q, i))
 
-# 1.3) OLS intercept and slope for two slope model: threshold by median flow rate: to do this:
+l.BCF<-lapply(l.lm, \(i) exp((summary(i)$sigma^2)/2))
 
-# create two df.OLS,one for pre and post median flow rate:
+l.pred.C<-lapply(names(l.lm), \(i) l.BCF[[i]]*exp(as.numeric(predict(l.lm[[i]], data.frame(log_Q = log(l.Q[[i]]$mean_Q))))))%>%purrr::set_names(names(l.Q))
+
+l.Yield<-lapply(names(l.lm), \(i) l.pred.C[[i]]*l.Q.v[[i]]*(1/l.DA[[i]])*unit_conversion)%>%purrr::set_names(names(l.Q))
+
+df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_longer(cols = everything(), names_to = 'Name', values_to = 'OLS.AANY.1s') # units of kg/ha/year
+
+df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
+
+# 1.2) OLS intercept, slope, AANY for two slope model: threshold by median flow rate.
+
+# slope and intercept: create two df.OLS, one for pre and post median flow rate:
 
 temp.pre<-df.RP%>%
   group_by(Name)%>%
@@ -635,43 +657,52 @@ temp <- left_join(temp.pre,temp.post,by='Name')
 
 df.OLS <- left_join(df.OLS,temp,by='Name')%>%as.data.frame()
 
-# check: I want to plot CQ curves with pre and post median OLS lines. to do this:
-
-# set up list of df for CQ for each site:
+# AANY:
 
 l.RP<-split(df.RP, f=df.RP$Name)
 
-# set up lists of lm for pre and post:
-
-l.pre<-df.RP%>%
-  group_by(Name)%>%
-  filter(X_00060_00003<median(X_00060_00003))%>%
-  group_split()%>%
-  purrr::set_names(sort(unique(df.RP$Name)))%>%
-  lapply(., \(i) lm(log_C~log_Q,i))
-
-l.post<-df.RP%>%
-  group_by(Name)%>%
-  filter(X_00060_00003>=median(X_00060_00003))%>%
-  group_split()%>%
-  purrr::set_names(sort(unique(df.RP$Name)))%>%
-  lapply(., \(i) lm(log_C~log_Q,i))
-
-# create df of median Q for each site:
-
 df.median.Q<-df.TP_CQ%>%group_by(site_no)%>%summarise(median_Q=median(X_00060_00003))
+
+l.lm.pre <- df.RP%>%
+  filter(X_00060_00003<median(X_00060_00003))%>%
+  split(., f=.$Name)%>%
+  lapply(., \(i) lm(log_C ~ log_Q, i))
+
+l.lm.post <- df.RP%>%
+  filter(X_00060_00003>=median(X_00060_00003))%>%
+  split(., f=.$Name)%>%
+  lapply(., \(i) lm(log_C ~ log_Q, i))
 
 # make sure list orders are the same:
 
-names(l.pre)==names(l.post)
-names(l.pre)==names(l.RP)
-names(l.pre)==df.median.Q$site_no
+names(l.lm.pre)==names(l.lm.post)
+names(l.lm.pre)==names(l.RP)
+names(l.lm.pre)==df.median.Q$site_no
+
+# back to workflow:
+
+l.BCF.pre<-lapply(l.lm.pre, \(i) exp((summary(i)$sigma^2)/2))
+l.BCF.post<-lapply(l.lm.post, \(i) exp((summary(i)$sigma^2)/2))
+
+l.pred.C<-lapply(seq_along(l.lm.pre), \(i) l.Q[[i]]%>%mutate(pred.C = ifelse(mean_Q < df.median.Q$median_Q[i],
+                     l.BCF.pre[[i]]*exp(as.numeric(predict(l.lm.pre[[i]], data.frame(log_Q = log(l.Q[[i]]$mean_Q))))),
+                     l.BCF.post[[i]]*exp(as.numeric(predict(l.lm.post[[i]], data.frame(log_Q = log(l.Q[[i]]$mean_Q)))))
+                     )))%>%
+  purrr::set_names(names(l.Q))
+
+l.Yield<-lapply(names(l.lm), \(i) l.pred.C[[i]]$pred.C*l.Q.v[[i]]*(1/l.DA[[i]])*unit_conversion)%>%purrr::set_names(names(l.Q))
+
+df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_longer(cols = everything(), names_to = 'Name', values_to = 'OLS.AANY.2s.medQ') # units of kg/ha/year
+
+df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
+
+# check: I want to plot CQ curves with pre and post median OLS lines. to do this:
 
 # use models in ifelse to predict concentration column:
 
-l.test<-lapply(seq_along(l.post), \(i) l.RP[[i]]%>%mutate(Seg_C.medQ = ifelse(Q < df.median.Q$median_Q[i], 
-          predict(l.pre[[i]], data.frame(log_Q = l.RP[[i]]$log_Q)),
-          predict(l.post[[i]], data.frame(log_Q = l.RP[[i]]$log_Q))
+l.test<-lapply(seq_along(l.lm.pre), \(i) l.RP[[i]]%>%mutate(Seg_C.medQ = ifelse(Q < df.median.Q$median_Q[i], 
+          predict(l.lm.pre[[i]], data.frame(log_Q = l.RP[[i]]$log_Q)),
+          predict(l.lm.post[[i]], data.frame(log_Q = l.RP[[i]]$log_Q))
 ))%>%
   mutate(Seg_type = ifelse(Q < df.median.Q$median_Q[i],
                            'Pre_Q_med',
@@ -687,11 +718,11 @@ ggplot(l.test[[i]], aes(x = log_Q, y = log_C))+
   geom_smooth(method = 'lm')+
   geom_line(aes(x = log_Q, y = Seg_C.medQ, color = Seg_type))
 
-df.OLS[i,]
+df.OLS[1,5:9]
 
 # looks good!
 
-# 1.4) OLS intercept and slope for two slope model: threshold by median concentration: to do this:
+# 1.3) OLS intercept, slope, AANY for two slope model: threshold by median concentration: to do this:
 
 # create two df.OLS, one for pre and post median conc:
 
@@ -721,43 +752,56 @@ temp <- left_join(temp.pre,temp.post,by='Name')
 
 df.OLS <- left_join(df.OLS,temp,by='Name')%>%as.data.frame()
 
-# check: 
-
-# set up list of df for CQ for each site:
-
-l.RP<-split(df.RP, f=df.RP$Name)
-
-# set up lists of lm for pre and post:
-
-l.pre<-df.RP%>%
-  group_by(Name)%>%
-  filter(C<median(C))%>%
-  group_split()%>%
-  purrr::set_names(sort(unique(df.RP$Name)))%>%
-  lapply(., \(i) lm(log_C~log_Q,i))
-
-l.post<-df.RP%>%
-  group_by(Name)%>%
-  filter(C>=median(C))%>%
-  group_split()%>%
-  purrr::set_names(sort(unique(df.RP$Name)))%>%
-  lapply(., \(i) lm(log_C~log_Q,i))
-
-# create df of median Q for each site:
+# AANY:
 
 df.median.C<-df.TP_CQ%>%group_by(site_no)%>%summarise(median_C=median(result_va))
 
+l.lm.pre <- df.RP%>%
+  filter(C<median(C))%>%
+  split(., f=.$Name)%>%
+  lapply(., \(i) lm(log_C ~ log_Q, i))
+
+l.lm.post <- df.RP%>%
+  filter(C>=median(C))%>%
+  split(., f=.$Name)%>%
+  lapply(., \(i) lm(log_C ~ log_Q, i))
+
 # make sure list orders are the same:
 
-names(l.pre)==names(l.post)
-names(l.pre)==names(l.RP)
-names(l.pre)==df.median.Q$site_no
+names(l.lm.pre)==names(l.lm.post)
+names(l.lm.pre)==names(l.RP)
+names(l.lm.pre)==df.median.Q$site_no
+
+# back to workflow:
+
+l.BCF.pre<-lapply(l.lm.pre, \(i) exp((summary(i)$sigma^2)/2))
+l.BCF.post<-lapply(l.lm.post, \(i) exp((summary(i)$sigma^2)/2))
+
+l.pred.C<-lapply(seq_along(l.lm.pre), \(i) l.Q[[i]]%>%mutate(pred.C = ifelse(mean_Q < df.median.Q$median_Q[i],
+                                                                             l.BCF.pre[[i]]*exp(as.numeric(predict(l.lm.pre[[i]], data.frame(log_Q = log(l.Q[[i]]$mean_Q))))),
+                                                                             l.BCF.post[[i]]*exp(as.numeric(predict(l.lm.post[[i]], data.frame(log_Q = log(l.Q[[i]]$mean_Q)))))
+)))%>%
+  purrr::set_names(names(l.Q))
+
+l.Yield<-lapply(names(l.lm), \(i) l.pred.C[[i]]$pred.C*l.Q.v[[i]]*(1/l.DA[[i]])*unit_conversion)%>%purrr::set_names(names(l.Q))
+
+df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_longer(cols = everything(), names_to = 'Name', values_to = 'OLS.AANY.2s.medC') # units of kg/ha/year
+
+df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
+
+# check: 
+
+# make sure list orders are the same:
+
+names(l.lm.pre)==names(l.lm.post)
+names(l.lm.pre)==names(l.RP)
+names(l.lm.pre)==df.median.Q$site_no
 
 # use models in ifelse to predict concentration column:
 
-l.test<-lapply(seq_along(l.post), \(i) l.RP[[i]]%>%mutate(Seg_C.medC = ifelse(C < df.median.C$median_C[i], 
-                                                                              predict(l.pre[[i]], data.frame(log_Q = l.RP[[i]]$log_Q)),
-                                                                              predict(l.post[[i]], data.frame(log_Q = l.RP[[i]]$log_Q))
+l.test<-lapply(seq_along(l.lm.pre), \(i) l.RP[[i]]%>%mutate(Seg_C.medC = ifelse(C < df.median.C$median_C[i], 
+                                                                              predict(l.lm.pre[[i]], data.frame(log_Q = l.RP[[i]]$log_Q)),
+                                                                              predict(l.lm.post[[i]], data.frame(log_Q = l.RP[[i]]$log_Q))
 ))%>%
   mutate(Seg_type = ifelse(C < df.median.C$median_C[i],
                            'Pre_C_med',
@@ -773,25 +817,25 @@ ggplot(l.test[[i]], aes(x = log_Q, y = log_C))+
   geom_smooth(method = 'lm')+
   geom_line(aes(x = log_Q, y = Seg_C.medC, color = Seg_type))
 
-df.OLS[i,]
+df.OLS[i,10:14]
 
 # I want to look at facet plot of all these:
 
 x <- bind_rows(l.test, .id = "Name")
 
-ggplot(x, aes(x = log_Q, y = log_C))+
-  geom_point()+
-  geom_smooth(method = 'lm')+
-  geom_line(aes(x = log_Q, y = Seg_C.medC, color = Seg_type))+
-  facet_wrap('Name', scales = 'free') +
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_blank()
-  )
+# ggplot(x, aes(x = log_Q, y = log_C))+
+#   geom_point()+
+#   geom_smooth(method = 'lm')+
+#   geom_line(aes(x = log_Q, y = Seg_C.medC, color = Seg_type))+
+#   facet_wrap('Name', scales = 'free') +
+#   theme(
+#     strip.background = element_blank(),
+#     strip.text.x = element_blank()
+#   )
 
 # I just realized that separation by C doesnt scale well in this workflow
 
-# 1.5) baseflow separation:
+# 1.4) baseflow separation:
 
 library(grwat)
 
@@ -799,8 +843,10 @@ library(grwat)
 
 # Calculate baseflow:
 
+i<-2
+
 hdata = df.NWIS.Q %>%
-  filter(site_no == df.OLS$Name[1])%>%
+  filter(site_no == df.OLS$Name[i])%>%
   mutate(Qbase = gr_baseflow(X_00060_00003, method = 'lynehollick', a = .925, passes = 3),
          Date=as.Date(Date))%>%
   mutate(Q_type=ifelse(X_00060_00003<=Qbase, 'Baseflow', 'Stormflow'))
@@ -858,6 +904,41 @@ temp <- left_join(temp.base, temp.storm,by='Name')
 
 df.OLS <- left_join(df.OLS,temp,by='Name')%>%as.data.frame()
 
+# AANY:
+
+l.lm.pre <- df.RP%>%
+  filter(Q_type == 'Baseflow')%>%
+  split(., f=.$Name)%>%
+  lapply(., \(i) lm(log_C ~ log_Q, i))
+
+l.lm.post <- df.RP%>%
+  filter(Q_type == 'Stormflow')%>%
+  split(., f=.$Name)%>%
+  lapply(., \(i) lm(log_C ~ log_Q, i))
+
+# make sure list orders are the same:
+
+names(l.lm.pre)==names(l.lm.post)
+names(l.lm.pre)==names(l.RP)
+names(l.lm.pre)==df.median.Q$site_no
+
+# back to workflow:
+
+l.BCF.pre<-lapply(l.lm.pre, \(i) exp((summary(i)$sigma^2)/2))
+l.BCF.post<-lapply(l.lm.post, \(i) exp((summary(i)$sigma^2)/2))
+
+l.pred.C<-lapply(seq_along(l.lm.pre), \(i) l.Q[[i]]%>%mutate(pred.C = ifelse(mean_Q < df.median.Q$median_Q[i],
+                                                                             l.BCF.pre[[i]]*exp(as.numeric(predict(l.lm.pre[[i]], data.frame(log_Q = log(l.Q[[i]]$mean_Q))))),
+                                                                             l.BCF.post[[i]]*exp(as.numeric(predict(l.lm.post[[i]], data.frame(log_Q = log(l.Q[[i]]$mean_Q)))))
+)))%>%
+  purrr::set_names(names(l.Q))
+
+l.Yield<-lapply(names(l.lm), \(i) l.pred.C[[i]]$pred.C*l.Q.v[[i]]*(1/l.DA[[i]])*unit_conversion)%>%purrr::set_names(names(l.Q))
+
+df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_longer(cols = everything(), names_to = 'Name', values_to = 'OLS.AANY.2s.Hydro.Sep') # units of kg/ha/year
+
+df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
+
 # check with plot:
 
 # plots:
@@ -871,7 +952,113 @@ ggplot(df.RP%>%filter(Name == df.OLS$Name[1]), aes(x = log_Q, y = log_C,color = 
     strip.text.x = element_blank()
   )
 
-df.OLS[1,12:15]
+df.OLS[1,15:19]
+
+# 1.5) advanced baseflow separation
+
+# add precip and temperature to df.NWIS.Q:
+
+# use function to download climate data for each sites watershed boundary
+# and summarize it into a single mean daily value for each flow observation...
+# that is a lot of data!
+
+# i am going to wait on this since I dont know if it is worth it
+
+# 2) non-CQ metrics:
+
+# 2.1) CV_C/CV_Q
+
+df.CV <- df.RP%>%
+  group_by(Name)%>%
+  summarise(CV_C =  cv(C), CV_Q = cv(Q), CV_CQ =cv(C)/cv(Q))
+
+# 2.2) median and mean concentrations:
+
+df.medC <- df.RP%>%
+  group_by(Name)%>%
+  summarise(medC = median(C), meanC = mean(C))
+
+# 2.3) WRTDS:
+
+library(EGRET)
+
+# write flow dfs to csv files and read back in:
+
+# x<-df.NWIS.Q%>%
+#   filter(site_no %in% df.RP$Name)%>%
+#   split(., f=.$site_no)
+# 
+# lapply(seq_along(x),\(i) x[[i]]%>%
+#            select(Date,X_00060_00003)%>%
+#            mutate(Date = as.Date(Date))%>%
+#            rename(Q=X_00060_00003)%>%
+#            write.csv(., file = paste0('Raw_Data/Q_csv/', names(x)[i], '.csv'), row.names = F)
+#          )
+# 
+# l.readUserDaily<-list()
+# 
+# for(i in seq_along(l.Q)){
+#   
+#   l.readUserDaily[[i]]<-readUserDaily('Raw_Data/Q_csv', paste0(names(l.Q)[i], '.csv'))
+#   
+# }
+# 
+# names(l.readUserDaily) <- names(l.Q)
+# 
+# save(l.readUserDaily, file = "Raw_Data/Q_csv/l.readUserDaily.Rdata")
+
+load("Raw_Data/Q_csv/l.readUserDaily.Rdata")
+
+# write sample dfs to csv files and read back in:
+
+# x<-df.RP%>%
+#   ungroup()%>%
+#   split(., f=.$Name)
+# 
+# lapply(seq_along(x),\(i) x[[i]]%>%
+#          rename(Date=sample_dt)%>%
+#            select(Date,C)%>%
+#            mutate(Date = as.Date(Date))%>%
+#            mutate(Remarks = NA, .after = 1)%>%
+#            write.csv(., file = paste0('Raw_Data/C_csv/', names(x)[i], '.csv'), row.names = F))
+# 
+# l.readUserSample<-list()
+# 
+# for(i in seq_along(l.Q)){
+# 
+#   l.readUserSample[[i]]<-readUserSample('Raw_Data/C_csv', paste0(names(l.Q)[i], '.csv'))
+# 
+# }
+# 
+# names(l.readUserSample) <- names(l.Q)
+# 
+# save(l.readUserSample, file = "Raw_Data/Q_csv/l.readUserSample.Rdata")
+
+load("Raw_Data/Q_csv/l.readUserSample.Rdata")
+
+# download info df and save:
+
+# l.readNWISInfo <- lapply(names(l.Q), \(i) readNWISInfo(i,  pcode, interactive = FALSE))
+# 
+# save(l.readNWISInfo , file = "Raw_Data/Q_csv/l.readNWISInfo.Rdata")
+
+load("Raw_Data/Q_csv/l.readNWISInfo.Rdata")
+
+# build l.eList:
+
+l.eList <- lapply(seq_along(l.Q), \(i) mergeReport(l.readNWISInfo[[i]],l.readUserDaily[[i]],l.readUserSample[[i]]))
+
+# run WRTDS using modified function:
+
+l.eList <- lapply(l.eList, fun.R.modelEstimation)
+
+save(l.eList , file = "Processed_Data/l.eList.Rdata")
+
+# look at annual results:
+
+ApMayJuneResults <- setupYears(l.eList[[11]]$Daily, paLong = 12, paStart = 1)
+
+x<-l.eList[[11]]$Daily
 
 #
 
