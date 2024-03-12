@@ -448,9 +448,9 @@ length(unique(x2$site_no))
 
 
 
-####~~ Finalizing df.TP_CQ to move on in code ~~####
+#### ! Finalizing df.TP_CQ to move on in code ####
 
-#f irst pass 
+# first pass 
 
 df.TP_CQ<-temp3
 
@@ -574,7 +574,7 @@ df_Seg<-left_join(df_Seg, temp%>%select(site, n_sample_rank), by = 'site')%>%
 
 #### Setting up Response Variables ####
 
-# set up df for this section:
+#### ~ Set up df for this section: ####
 
 df.RP <- df.TP_CQ%>%
   rename(Name = site_no)%>%
@@ -599,7 +599,7 @@ unit_conversion=28.3168*86400*(1/1000)*(1/1000)*(1/258.999) # mg/L * ft^3/sec * 
 
 # 1) CQ metrics and associated Average Annual Nutrient Yields:
 
-# 1.1) OLS intercept, slope, AANY for single slope model:
+#### ~ 1.1) OLS intercept, slope, AANY for single slope model: ####
 
 # slope and intercept:
 
@@ -627,7 +627,7 @@ df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_lon
 
 df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
 
-# 1.2) OLS intercept, slope, AANY for two slope model: threshold by median flow rate.
+#### ~ 1.2) OLS intercept, slope, AANY for two slope model - threshold by median flow rate ####
 
 # slope and intercept: create two df.OLS, one for pre and post median flow rate:
 
@@ -718,11 +718,11 @@ ggplot(l.test[[i]], aes(x = log_Q, y = log_C))+
   geom_smooth(method = 'lm')+
   geom_line(aes(x = log_Q, y = Seg_C.medQ, color = Seg_type))
 
-df.OLS[1,5:9]
+df.OLS[i,5:9]
 
 # looks good!
 
-# 1.3) OLS intercept, slope, AANY for two slope model: threshold by median concentration: to do this:
+#### ~ 1.3) OLS intercept, slope, AANY for two slope model - threshold by median concentration ####
 
 # create two df.OLS, one for pre and post median conc:
 
@@ -810,7 +810,7 @@ l.test<-lapply(seq_along(l.lm.pre), \(i) l.RP[[i]]%>%mutate(Seg_C.medC = ifelse(
 
 # check with plot:
 
-i <- 1
+i <- 2
 
 ggplot(l.test[[i]], aes(x = log_Q, y = log_C))+
   geom_point()+
@@ -821,7 +821,7 @@ df.OLS[i,10:14]
 
 # I want to look at facet plot of all these:
 
-x <- bind_rows(l.test, .id = "Name")
+# x <- bind_rows(l.test, .id = "Name")
 
 # ggplot(x, aes(x = log_Q, y = log_C))+
 #   geom_point()+
@@ -835,7 +835,7 @@ x <- bind_rows(l.test, .id = "Name")
 
 # I just realized that separation by C doesnt scale well in this workflow
 
-# 1.4) baseflow separation:
+#### ~ 1.4) baseflow separation ####
 
 library(grwat)
 
@@ -857,7 +857,7 @@ ggplot(hdata) +
   geom_area(aes(Date, X_00060_00003), fill = 'steelblue', color = 'black') +
   geom_area(aes(Date, Qbase), fill = 'orangered', color = 'black')+
   geom_point(aes(Date, X_00060_00003, color=Q_type))+
-  scale_x_date(limits = c(ymd(20070101), ymd(20071231)))
+  scale_x_date(limits = c(ymd(20070601), ymd(20070731)))
 
 # pretty sick
 
@@ -954,7 +954,7 @@ ggplot(df.RP%>%filter(Name == df.OLS$Name[1]), aes(x = log_Q, y = log_C,color = 
 
 df.OLS[1,15:19]
 
-# 1.5) advanced baseflow separation
+#### ~ 1.5) advanced baseflow separation ####
 
 # add precip and temperature to df.NWIS.Q:
 
@@ -964,23 +964,19 @@ df.OLS[1,15:19]
 
 # i am going to wait on this since I dont know if it is worth it
 
-# 2) non-CQ metrics:
-
-# 2.1) CV_C/CV_Q
+#### ~ 2) non-CQ metrics: CV_C/CV_Q, median and mean concentrations ####
 
 df.CV <- df.RP%>%
   group_by(Name)%>%
   summarise(CV_C =  cv(C), CV_Q = cv(Q), CV_CQ =cv(C)/cv(Q))
 
-# 2.2) median and mean concentrations:
-
 df.medC <- df.RP%>%
   group_by(Name)%>%
   summarise(medC = median(C), meanC = mean(C))
 
-# 2.3) WRTDS:
+#### ~ 3) WRTDS ####
 
-library(EGRET)
+# library(EGRET)
 
 # write flow dfs to csv files and read back in:
 
@@ -1007,7 +1003,7 @@ library(EGRET)
 # 
 # save(l.readUserDaily, file = "Raw_Data/Q_csv/l.readUserDaily.Rdata")
 
-load("Raw_Data/Q_csv/l.readUserDaily.Rdata")
+# load("Raw_Data/Q_csv/l.readUserDaily.Rdata")
 
 # write sample dfs to csv files and read back in:
 
@@ -1034,7 +1030,7 @@ load("Raw_Data/Q_csv/l.readUserDaily.Rdata")
 # 
 # save(l.readUserSample, file = "Raw_Data/Q_csv/l.readUserSample.Rdata")
 
-load("Raw_Data/Q_csv/l.readUserSample.Rdata")
+# load("Raw_Data/Q_csv/l.readUserSample.Rdata")
 
 # download info df and save:
 
@@ -1042,135 +1038,38 @@ load("Raw_Data/Q_csv/l.readUserSample.Rdata")
 # 
 # save(l.readNWISInfo , file = "Raw_Data/Q_csv/l.readNWISInfo.Rdata")
 
-load("Raw_Data/Q_csv/l.readNWISInfo.Rdata")
+# load("Raw_Data/Q_csv/l.readNWISInfo.Rdata")
 
 # build l.eList:
 
-l.eList <- lapply(seq_along(l.Q), \(i) mergeReport(l.readNWISInfo[[i]],l.readUserDaily[[i]],l.readUserSample[[i]]))
+# l.eList <- lapply(seq_along(l.Q), \(i) mergeReport(l.readNWISInfo[[i]],l.readUserDaily[[i]],l.readUserSample[[i]]))
 
 # run WRTDS using modified function:
 
-l.eList <- lapply(l.eList, fun.R.modelEstimation)
+# l.eList <- lapply(l.eList, fun.R.modelEstimation)
 
-save(l.eList , file = "Processed_Data/l.eList.Rdata")
+# save l.elist with WRTDS results:
+
+# save(l.eList , file = "Processed_Data/l.eList.Rdata")
+
+# load in l.elist:
+
+# load("Processed_Data/l.eList.Rdata")
 
 # look at annual results:
 
-ApMayJuneResults <- setupYears(l.eList[[11]]$Daily, paLong = 12, paStart = 1)
+# ApMayJuneResults <- setupYears(l.eList[[11]]$Daily, paLong = 12, paStart = 1)
 
-x<-l.eList[[11]]$Daily
+# plotFluxHist(l.eList[[11]])
+
+# x<-l.eList[[11]]$INFO
 
 #
 
+#### ~ Putting response variables together into single df: ####
 
-
-
-
-
-
-
-
-
-
-
-
-
-df.TP_CQ.top50<-split(df.TP_CQ, f = df.TP_CQ$site_no)%>% # split the df into list of dfs for each site,
-  lapply(., \(i) i%>%filter(X_00060_00003>median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
-  bind_rows(.) # bind back into single dataframe:
-
-# merge OLS and Sens:
-
-df.OLS_Sens<-left_join(df.OLS, df.Sens, by = 'Name')
-
-# merge constiuent yield:
-
-df.OLS_Sens<-left_join(df.OLS_Sens, df.Yield, by = 'Name')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#### Calculating Average Annual Consituent Yield ####
-
-# (for use in correlaitons and MLR)
-
-# step 1. calcualte average annual hydrograph for each site. to do this:
-
-# filter the daily flow records to just the sites used:
-
-l.avg_ann_hydro<-df.NWIS.Q%>%filter(site_no %in% df.TP_CQ$site_no)
-
-# split the daily flow records into list of dfs
-
-l.avg_ann_hydro<-split(l.avg_ann_hydro, f = l.avg_ann_hydro$site_no)
-
-# strip out year from date (just converts it to 2023) for each dataframe, then group by and summarize to get mean annual flow for each day of calendar year:
-
-l.avg_ann_hydro<-lapply(l.avg_ann_hydro, \(i) i%>%mutate(Date = as.Date(Date))%>%mutate(year = year(Date), Date = as.Date(format(Date, "%m-%d"), "%m-%d"))%>%group_by(Date)%>%summarize(mean_Q = mean(X_00060_00003, na.rm= T)))
-
-# step 2. predict C for each of day of the year using the mean flow rate for each site in the list:todothis:
-
-# create a list of linear model objects for each sites CQ relaitonship:
-
-l.C_daily<-df.TP_CQ%>%
-  rename(Name = site_no)%>%
-  select(Name, sample_dt,result_va, X_00060_00003)%>%mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-  filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))%>%
-  split(., f =.$Name)%>%
-  lapply(., \(i) lm(log_C ~ log_Q, i))
-
-# make sure the order of the sites in the flow and lm lists are the same:
-
-names(l.C_daily)==names(l.avg_ann_hydro)
-
-# use this list to create list of bias correction factors:
-
-l.BCF<-lapply(l.C_daily, \(i) exp((summary(i)$sigma^2)/2))
-
-# predict the concentration for each day for each site: this predicts the concnetration in log space, so transforming into real space here as well using BCF:
-
-l.C_daily<-lapply(names(l.C_daily), \(i) l.BCF[[i]]*exp(as.numeric(predict(l.C_daily[[i]], data.frame(log_Q = log(l.avg_ann_hydro[[i]]$mean_Q) ) ) ) ) )%>%purrr::set_names(names(l.avg_ann_hydro))
-
-# step 3. multiply predicted average daily C by daily Q to get daily load, sum up, then convert to yield. To do this:
-
-# save just the daily Q:
-
-l.Q.temp<-lapply(l.avg_ann_hydro, \(i) i$mean_Q)
-
-# set up list of drainage areas:
-
-l.DA<-readNWISsite(siteNumbers = names(l.C_daily))%>%select(site_no, drain_area_va)%>%split(., .$site_no)%>%lapply(., \(i) i$drain_area_va)
-
-# multiply daily C by daily Q and convert units:
-# mg/L * ft^3/sec * 28.3168 L/ft3 * 86400 sec /day * 1g/1000mg * 1kg/1000g * 1/mi^2 * 1mi^2/258.999 ha = kg/ha/day
-
-unit_conversion=28.3168*86400*(1/1000)*(1/1000)*(1/258.999)
-
-l.Yield<-lapply(names(l.C_daily), \(i) l.C_daily[[i]]*l.Q.temp[[i]]*(1/l.DA[[i]])*unit_conversion)%>%purrr::set_names(names(l.avg_ann_hydro))
-
-# sum up for the year and convert to df
-
-df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Yield') # units of kg/ha/year
+df.Response <- left_join(df.OLS, df.CV, by = 'Name')%>%
+  left_join(.,df.medC, by = 'Name')
 
 #
 
@@ -1203,223 +1102,93 @@ df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_lon
 
 
 
+#### Set up Predictors ####
 
-#### Calculating Average Annual Consituent Yield for Top 50 ####
+# first pass predictors are from G2:
 
-# (for use in correlaitons and MLR)
+# reduce the predictor set down to those we believe are defensible:
 
-# step 1 from the previous section can be used here
-
-# step 2 needs to incorporate two linear models, bottom and top 50:
-
-l.C_daily.bottom50<-split(df.TP_CQ, f = df.TP_CQ$site_no)%>% # split the df into list of dfs for each site, 
-  lapply(., \(i) i%>%filter(X_00060_00003<median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
-  bind_rows(.)%>% # bind back into single dataframe:
-  rename(Name = site_no)%>%
-  select(Name, sample_dt,result_va, X_00060_00003)%>%
-  mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-  filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))%>%
-  split(., f =.$Name)%>%
-  lapply(., \(i) lm(log_C ~ log_Q, i))
-
-l.C_daily.top50<-split(df.TP_CQ, f = df.TP_CQ$site_no)%>% # split the df into list of dfs for each site, 
-  lapply(., \(i) i%>%filter(X_00060_00003>=median(i$X_00060_00003)))%>% # filter to the median flow rate for each site,
-  bind_rows(.)%>% # bind back into single dataframe:
-  rename(Name = site_no)%>%
-  select(Name, sample_dt,result_va, X_00060_00003)%>%
-  mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-  filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))%>%
-  split(., f =.$Name)%>%
-  lapply(., \(i) lm(log_C ~ log_Q, i))
-
-# make sure the order of the sites in the flow and lm lists are the same:
-
-names(l.C_daily.bottom50)==names(l.avg_ann_hydro)
-names(l.C_daily.top50)==names(l.avg_ann_hydro)
-
-# use this list to create list of bias correction factors:
-
-l.BCF.bottom50<-lapply(l.C_daily.bottom50, \(i) exp((summary(i)$sigma^2)/2))
-l.BCF.top50<-lapply(l.C_daily.top50, \(i) exp((summary(i)$sigma^2)/2))
-
-# create df of median Q for each site:
-
-df.median.Q<-df.TP_CQ%>%group_by(site_no)%>%summarise(median_Q=median(X_00060_00003))
-
-# predict the concentration for each day for each site: 
-# ifelse is used to determine if the average daily flow is less than median, use the model in bottom50, if equal to or above median use model in top50
-# this predicts the concnetration in log space, so transforming into real space here as well using BCF:
-
-l.C_daily<-lapply(seq_along(l.avg_ann_hydro), \(i) l.avg_ann_hydro[[i]]%>%mutate(C = ifelse(mean_Q < df.median.Q$median_Q[i], 
-                                                                                            l.BCF.bottom50[[i]]*exp(as.numeric(predict(l.C_daily.bottom50[[i]], data.frame(log_Q = log(l.avg_ann_hydro[[i]]$mean_Q))))),
-                                                                                            l.BCF.top50[[i]]*exp(as.numeric(predict(l.C_daily.top50[[i]], data.frame(log_Q = log(l.avg_ann_hydro[[i]]$mean_Q)))))
-                                                                                            )))%>%purrr::set_names(names(l.avg_ann_hydro))
-
-# I think this worked!! cause if I sub in NA for the else line in mutate, those rows are NA!
-
-# check:
-
-ggplot(l.C_daily[[30]], aes(x = log(mean_Q), y = log(C)))+
-  geom_point()+
-  geom_smooth(method = 'lm') #+
-  geom_line(l.avg_ann_hydro[[11]], aes(x = log_Q, y = Seg_C.medQ, color = 'tomato'))
-
-
-# step 3. multiply predicted average daily C by daily Q to get daily load, sum up, then convert to yield. To do this:
-
-# set up list of vectors of drainage areas:
-
-l.DA<-readNWISsite(siteNumbers = names(l.C_daily))%>%select(site_no, drain_area_va)%>%split(., .$site_no)%>%lapply(., \(i) i$drain_area_va)
-
-# multiply daily C by daily Q and convert units:
-# mg/L * ft^3/sec * 28.3168 L/ft3 * 86400 sec /day * 1g/1000mg * 1kg/1000g * 1/mi^2 * 1mi^2/258.999 ha = kg/ha/day
-
-unit_conversion=28.3168*86400*(1/1000)*(1/1000)*(1/258.999)
-
-l.Yield<-lapply(names(l.C_daily), \(i) l.C_daily[[i]]$C*l.Q.temp[[i]]*(1/l.DA[[i]])*unit_conversion)%>%purrr::set_names(names(l.avg_ann_hydro))
-
-# sum up for the year and convert to df
-
-df.Yield.2model <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Yield') # units of kg/ha/year
-
-#
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-#### Correlations ####
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-
-# note: only run for first pass
-
-# start of comment out:
-
-# # reduce the predictor set down to those we believe are defensible:
-# 
-# # I also went in to the variable description excel sheet and isolated these variables as well:
-# 
-# temp1<-read.csv('Processed_Data/G2_pred_to_keep_2.csv')[,1]
-# 
-# # combining these with the vairbales in entire sheets as well:
-# 
-# pred_to_keep<-c("HYDRO_DISTURB_INDX", 
-#                "pre1990_STOR", 
-#                names(l.G2$Landscape_Pat), 
-#                names(l.G2$LC06_Basin),
-#                names(l.G2$LC_Crops),
-#                temp1,
-#                # 'HGA', 'HGB', 'HGC', 'HGD',
-#                "ELEV_MEDIAN_M_BASIN",
-#                "ELEV_STD_M_BASIN",
-#                "RRMEDIAN"
-# )
-# 
-# # removing 'STADID':
-# 
-# pred_to_keep <- pred_to_keep[!(pred_to_keep %in% "STAID")]
-# 
-# # removing the duplicates of DEV and PDEN, and also CDL_WWHT_SOY_DBL_CROP
-# 
-# pred_to_keep <- pred_to_keep[!(pred_to_keep %in% c("DEVOPENNLCD06","DEVLOWNLCD06","DEVMEDNLCD06","DEVHINLCD06", "PDEN_DAY_LANDSCAN_2007", "PDEN_NIGHT_LANDSCAN_2007", "CDL_WWHT_SOY_DBL_CROP"))]
-# 
-# # filtering df.G2 to this predictor list and sites:
-# 
-# df.G2.reduced<-df.G2%>%
-#   select(c('STAID', pred_to_keep, starts_with('HG')))%>%
-#   filter(STAID %in% df.TP_CQ$site_no)
-# 
-# # take the average of the RIP and MAIN for each land use:
-# 
-# # df.G2.reduced<-df.G2.reduced%>%
-# #   rowwise() %>%
-# #   mutate(MAIN_RIP_DEV_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("DEV")), na.rm = TRUE),
-# #          MAIN_RIP_FOREST_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("FOREST")), na.rm = TRUE),
-# #          MAIN_RIP_PLANT_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("PLANT")), na.rm = TRUE),
-# #          .keep = 'unused'
-# #          )
-# 
-# # adding up the other crops:
-# 
+temp1<-read.csv('Processed_Data/G2_pred_to_keep_2.csv')[,1] # I went in to the variable description excel sheet and isolated these variables as well:
+pred_to_keep<-c("STAID",
+                "HYDRO_DISTURB_INDX", 
+                "pre1990_STOR",
+                "FRAGUN_BASIN", # names(l.G2$Landscape_Pat),
+                "DEVNLCD06","FORESTNLCD06","PLANTNLCD06", # names(l.G2$LC06_Basin),
+                "CDL_CORN", # names(l.G2$LC_Crops),
+                "PDEN_2000_BLOCK", "RIP800_DEV", "RIP800_FOREST", "RIP800_PLANT", # temp1,
+                'HGA', 'HGB', 'HGC', 'HGD',
+                "ELEV_MEDIAN_M_BASIN","ELEV_STD_M_BASIN","RRMEDIAN")
+df.G2.reduced<-df.G2%>%select(c('STAID', pred_to_keep))%>%filter(STAID %in% df.TP_CQ$site_no) # filtering df.G2 to this predictor list and sites:
 # df.G2.reduced<-df.G2.reduced%>%
-#   mutate(sum_of_misc_crops = sum(c_across(ends_with(c("COTTON", "RICE", "SORGHUM", "SUNFLOWERS", "PEANUTS", "BARLEY", "DURUM_WHEAT", "OATS", "DRY_BEANS", "POTATOES", "ORANGES", 'OTHER_CROPS', 'IDLE'))), na.rm = TRUE), .keep = 'unused')
-# 
-# names(df.G2.reduced)
-# 
-# # export this predictor set for the 42 sites:
-# 
-# save(df.G2.reduced, file = 'Processed_Data/df.G2.reduced.Rdata')
-# 
-# # combined the reduced predictors df with the already filtered CQ data:
-# 
-# df.Correlation<-df.TP_CQ%>%
-#   rename(Name = site_no)%>%
-#   select(Name, sample_dt,result_va, X_00060_00003)%>%mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-#   filter(is.finite(log_C))%>%
-#   filter(is.finite(log_Q))%>%
-#   left_join(., df.G2.reduced, by = c('Name'='STAID'))
-# 
-# # create a dataframe with OLS and sens slope intercept and slopes:
-# 
-# df.OLS<-df.Correlation%>%
-#   group_by(Name)%>%
-#   do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
-#   summarize(., OLS.I = OLS.co[1], 
-#             OLS.S = OLS.co[2])
-#   }) %>%
-#   ungroup
-# 
-# df.Sens<-df.Correlation%>%
-#   group_by(Name)%>%
-#   do({ Sens.co<-zyp.sen(log_C~log_Q,.)
-#   summarize(., Sen.I = Sens.co$coefficients[[1]],
-#             Sen.S= Sens.co$coefficients[[2]])
-#   }) %>%
-#   ungroup
-# 
-# # merge OLS and Sens:
-# 
-# df.OLS_Sens<-left_join(df.OLS, df.Sens, by = 'Name')
-# 
-# # merge constiuent yield:
-# 
-# df.OLS_Sens<-left_join(df.OLS_Sens, df.Yield, by = 'Name')
-# 
-# # merge back the watershed characteristic data to this dataframe:
-# 
-# df.OLS_Sens<-left_join(df.OLS_Sens, df.G2.reduced, by = c('Name'='STAID'))
-# 
-# # now run correlations between intercepts and slopes and watershed characteristics. to do this: (I orginally did this workflow using n_months (C:\PhD\Research\Mohawk\Code\Mohawk_Regression-analyizing_predictor_df.R)
-# 
-# # set up variable for number of sites:
-# 
-# n_sites<-dim(df.OLS_Sens)[1] 
-# 
-# # use the corrr package to correlate() and focus() on your variable of choice.
-# 
-# df.cor <- df.OLS_Sens %>% 
-#   correlate(method = 'spearman') %>%
-#   focus(c(OLS.I, OLS.S, Sen.I, Sen.S, Yield))%>%
-#   pivot_longer(cols= c(2:6), names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
-#   mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
-#   mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
-#   drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
-# 
-# # I also want to try standardizing the predictors:
-# 
-# df.cor.0to1<-df.OLS_Sens %>% 
+#   rowwise() %>%
+#   mutate(MAIN_RIP_DEV_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("DEV")), na.rm = TRUE),
+#          MAIN_RIP_FOREST_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("FOREST")), na.rm = TRUE),
+#          MAIN_RIP_PLANT_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("PLANT")), na.rm = TRUE),
+#          .keep = 'unused'
+#          ) # take the average of the RIP and MAIN for each land use:
+# df.G2.reduced<-df.G2.reduced%>%mutate(sum_of_misc_crops = sum(c_across(ends_with(c("COTTON", "RICE", "SORGHUM", "SUNFLOWERS", "PEANUTS", "BARLEY", "DURUM_WHEAT", "OATS", "DRY_BEANS", "POTATOES", "ORANGES", 'OTHER_CROPS', 'IDLE'))), na.rm = TRUE), .keep = 'unused') # adding up the other crops:
+# names(df.G2.reduced) # check
+# save(df.G2.reduced, file = 'Processed_Data/df.G2.reduced.Rdata') # export this predictor set for the 42 sites:
+load('Processed_Data/df.G2.reduced.Rdata')
+
+# second pass predictors are from datalayers:
+
+# load('Processed_Data/df.datalayers.62.Rdata') # read in datalayers predictors:
+# df.datalayers<-df.datalayers.62 # rename to just df.datalayers to work with correlations workflow:
+# df.datalayers<-df.datalayers%>%filter(!is.na(CSA_perc)) # *note* that one site has NA for pedictors that require soils since it had no sSurgo coverage. I will remove that site:
+# # *note* df.datalayers from second pass does not have column "Dbl_Crop_WinWht/Soybeans"
+# # *note* df.datalayers has 61 sites now. 
+# # It did have 62 sites while df.TP_CQ (for second pass) has 63 sites
+# # this is not a big deal for the correlaitons because it will just omit the
+# # row with NAs in all the predictor columns, but this row will need to be omitted
+# # when running the MLR
+# # as per a first run of this workflow, remove emergentwetlands, soybeans, winter wheat, grassland
+# # and replace NA with zero (this is ok since I removed the site with NA for soils where a zero would be wrong):
+# df.datalayers<-df.datalayers%>%
+#   select(-c(R_EMERGWETNLCD06, R_SNOWICENLCD06, R_SHRUBNLCD06, R_BARRENNLCD06,R_GRASSNLCD06, Soybeans, Winter_Wheat, `Dbl_Crop_WinWht/Soybeans`, R_WOODYWETNLCD06))%>%
+#   replace(is.na(.), 0)
+# library(corrplot)
+# corrplot(cor(df.datalayers[,-c(1, 10:30)])) # look at correlation matrix:
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Correlations ####
+
+# first pass:
+
+# merge predictor variables with response variable df:
+
+temp<-left_join(df.Response, df.G2.reduced, by = c('Name'='STAID'))
+
+# now run correlations between intercepts and slopes and watershed characteristics. to do this: (I orginally did this workflow using n_months (C:\PhD\Research\Mohawk\Code\Mohawk_Regression-analyizing_predictor_df.R)
+
+# set up variable for number of sites:
+
+n_sites<-dim(temp)[1]
+
+# use the corrr package to correlate() and focus() on your variable of choice.
+
+df.cor <- temp %>%
+  correlate(method = 'spearman') %>%
+  focus(2:24)%>%
+  pivot_longer(cols= -term, names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
+  mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
+  mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
+  drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
+
+# I also want to try standardizing the predictors:
+
+# df.cor.0to1<-df.OLS_Sens %>%
 #   mutate(across(7:last_col(), ~ (.-min(.))/(max(.)-min(.))))%>% # could add term: .names = "{.col}_standarized")
 #   correlate(method = 'spearman') %>%
 #   focus(c(OLS.I, OLS.S, Sen.I, Sen.S, Yield))%>%
@@ -1428,107 +1197,128 @@ df.Yield.2model <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pi
 #   mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
 #   drop_na(p_val) # some standard deviaitons return NA because the watershed characteristic values are zero
 # 
-# # looking at the regualr and 0 to 1 standarized spearman correlaitons, they are the same
-# 
-# df.cor$Spearman_Correlation==df.cor.0to1$Spearman_Correlation
-# 
-# # so not going to proceed with 0 to 1
-# 
-# # then plot results: to do this:
-# 
-# # create a list of each CQ parameter (4: OLS and Sens slope and intercept)and format it for ggplotting:
-# 
-# l.cor<-df.cor %>%
-#   split(., df.cor$CQ_Parameter)%>%
-#   lapply(., \(i) i%>% 
-#            arrange(Spearman_Correlation)%>%  
-#            slice_head(n = 7)%>%
-#            bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
-#            mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
-#            mutate(term = factor(term, levels = unique(term[order(Spearman_Correlation)])))%>%
-#            filter(!between(Spearman_Correlation, -0.25,.25))) # Order by correlation strength
-# 
-# # make plot list using lapply:
-# 
-# plist<-lapply(l.cor, \(i) i%>%ggplot(aes(x = term, y = Spearman_Correlation, color = sig_0.05)) +
-#                 geom_bar(stat = "identity") +
-#                 scale_color_manual(values = c("not" = "red", "sig" = "blue"),na.value = NA, drop = FALSE)+
-#                 facet_wrap('CQ_Parameter')+
-#                 ylab(paste('Spearman Correlation')) +
-#                 xlab("Watershed Attribute")+
-#                 theme(axis.text.x=element_text(angle=40,hjust=1))+
-#                 theme(legend.position="bottom"))
-# 
-# # arrange plots:
-# 
-# p1<-ggpubr::ggarrange(plotlist = plist, ncol=3, nrow=2, common.legend = TRUE, legend="bottom")
-# 
-# # add title:
-# 
-# p1<-annotate_figure(p1, top = text_grob(paste(ncode, "Correlated Against Gauges 2"),
-#                                         color = "red", face = "bold", size = 14))
-# # plot:
-# 
-# p1
-# 
-# # save(p1, file = 'Processed_Data/p1.Rdata')
-# 
-# # univariate plots of the top correlates/small land use types:
-# 
-# # Lets do plots of OLS intercept: to do this:
-# 
-# # determine the top correlates (the numberof the list determined which CQ parameter)
-# # here 1 = OLS intercept:
-# 
-# OLS<-l.cor[[1]]%>%arrange(desc(Spearman_Correlation))
-# 
-# # make univariate plots (facets) of Y (determined in [[]]) above and predictors: 
-# # note the predictor column isturned into an ordered factor based on thespearman correlation values
-# # to makethe facet plots in order:
-# 
-# df.OLS_Sens%>%
-#   select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
-#   pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
-#   drop_na(Value)%>%
-#   # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
-#   left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
-#   mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
-#   ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
-#   geom_smooth(method = 'lm')+
-#   geom_point()+
-#   facet_wrap('Type', scales = 'free')+
-#   ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
-# 
-# # create a function to use lapply to plot all 4 univariate sets:
-# 
-# # number<-5
-# 
-# # make_plot<-function(number){
-# #   
-# #   OLS<-l.cor[[number]]%>%arrange(desc(Spearman_Correlation))
-# #   
-# #   x<-df.OLS_Sens%>%
-# #     select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
-# #     pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
-# #     drop_na(Value)%>%
-# #     # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
-# #     left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
-# #     mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
-# #     ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
-# #     geom_smooth(method = 'lm')+
-# #     geom_point()+
-# #     facet_wrap('Type', scales = 'free')+
-# #     ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
-# #   
-# #   x
-# #   
-# # }
-# 
-# # use function in lapply (clear plot list first):
-# 
-# # lapply(c(1:5), \(i) make_plot(i))
-# 
-# #
+# df.cor$Spearman_Correlation==df.cor.0to1$Spearman_Correlation # looking at the regualr and 0 to 1 standarized spearman correlaitons, they are the same
+# so not going to proceed with 0 to 1
+
+# then plot results: to do this:
+
+# filter df.cor to just the signficant correlates:
+
+df.cor<-filter(df.cor, sig_0.05=='sig')
+
+# see how many unique predictors are signficant:
+
+unique(df.cor$term)
+
+# group_by predictor and arrange by signficance:
+
+x<-df.cor%>%
+  mutate(SC_abs=abs(Spearman_Correlation))%>%
+  group_by(CQ_Parameter)%>%
+  slice_max(SC_abs, n=5)
+
+ggplot(x,aes(x=term, y=Spearman_Correlation, fill=CQ_Parameter))+
+  geom_bar(stat="identity", color="black", position=position_dodge())+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
+  
+# create a list of each CQ parameter and format it for ggplotting:
+
+l.cor<-df.cor %>%
+  split(., df.cor$CQ_Parameter)%>%
+  lapply(., \(i) i%>%
+           arrange(Spearman_Correlation))%>%
+           slice_head(n = 10)%>%
+           bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
+           mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
+           mutate(term = factor(term, levels = unique(term[order(Spearman_Correlation)])))%>%
+           filter(!between(Spearman_Correlation, -0.25,.25))) # Order by correlation strength
+
+x <- l.cor[[1]]
+
+# make plot list using lapply:
+
+plist<-lapply(l.cor, \(i) i%>%ggplot(aes(x = term, y = Spearman_Correlation, color = sig_0.05)) +
+                geom_bar(stat = "identity") +
+                scale_color_manual(values = c("not" = "red", "sig" = "blue"),na.value = NA, drop = FALSE)+
+                facet_wrap('CQ_Parameter')+
+                ylab(paste('Spearman Correlation')) +
+                xlab("Watershed Attribute")+
+                theme(axis.text.x=element_text(angle=40,hjust=1, size = 7), axis.title.x=element_blank())+
+                theme(legend.position="bottom"))
+
+plist[[15]]
+
+# arrange plots:
+
+p1<-ggpubr::ggarrange(plotlist = plist, ncol=5, nrow=4, common.legend = TRUE, legend="bottom")
+
+# add title:
+
+p1<-annotate_figure(p1, top = text_grob(paste(ncode, "Correlated Against Gauges 2"),
+                                        color = "red", face = "bold", size = 14))
+# plot:
+
+p1
+
+# save(p1, file = 'Processed_Data/p1.Rdata')
+
+# univariate plots of the top correlates/small land use types:
+
+# Lets do plots of OLS intercept: to do this:
+
+# determine the top correlates (the numberof the list determined which CQ parameter)
+# here 1 = OLS intercept:
+
+OLS<-l.cor[[13]]%>%arrange(desc(Spearman_Correlation))
+
+# make univariate plots (facets) of Y (determined in [[]]) above and predictors:
+# note the predictor column isturned into an ordered factor based on thespearman correlation values
+# to makethe facet plots in order:
+
+x <- temp%>%
+  select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
+  pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
+  drop_na(Value)%>%
+  # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
+  left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
+  mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
+  ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
+  geom_smooth(method = 'lm')+
+  geom_point()+
+  facet_wrap('Type', scales = 'free')+
+  ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
+
+# create a function to use lapply to plot all 4 univariate sets:
+
+# number<-5
+
+# make_plot<-function(number){
+#
+#   OLS<-l.cor[[number]]%>%arrange(desc(Spearman_Correlation))
+#
+#   x<-df.OLS_Sens%>%
+#     select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
+#     pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
+#     drop_na(Value)%>%
+#     # mutate_if(is.numeric, ~replace(., . == 0, NA))%>%
+#     left_join(., OLS%>%select(term, Spearman_Correlation), by = c('Type'='term'))%>%
+#     mutate(Type = factor(Type, levels=unique(Type[order(-Spearman_Correlation,Type)]), ordered=TRUE))%>%
+#     ggplot(., aes(x = Value, y = !!sym(OLS$CQ_Parameter[1])))+
+#     geom_smooth(method = 'lm')+
+#     geom_point()+
+#     facet_wrap('Type', scales = 'free')+
+#     ggtitle(paste('Univariate plots of', OLS$CQ_Parameter[1], 'against Top Gauges 2 Correlates for', OLS$CQ_Parameter[1], 'ordered from highest to lowest Spearman Rank Correlation' ))
+#
+#   x
+#
+# }
+
+# use function in lapply (clear plot list first):
+
+# lapply(c(1:5), \(i) make_plot(i))
+
+#
 
 # end of comment out
 
