@@ -1108,17 +1108,20 @@ df.Response <- left_join(df.OLS, df.CV, by = 'Name')%>%
 
 # reduce the predictor set down to those we believe are defensible:
 
-temp1<-read.csv('Processed_Data/G2_pred_to_keep_2.csv')[,1] # I went in to the variable description excel sheet and isolated these variables as well:
-pred_to_keep<-c("STAID",
-                "HYDRO_DISTURB_INDX", 
-                "pre1990_STOR",
-                "FRAGUN_BASIN", # names(l.G2$Landscape_Pat),
-                "DEVNLCD06","FORESTNLCD06","PLANTNLCD06", # names(l.G2$LC06_Basin),
-                "CDL_CORN", # names(l.G2$LC_Crops),
-                "PDEN_2000_BLOCK", "RIP800_DEV", "RIP800_FOREST", "RIP800_PLANT", # temp1,
-                'HGA', 'HGB', 'HGC', 'HGD',
-                "ELEV_MEDIAN_M_BASIN","ELEV_STD_M_BASIN","RRMEDIAN")
-df.G2.reduced<-df.G2%>%select(c('STAID', pred_to_keep))%>%filter(STAID %in% df.TP_CQ$site_no) # filtering df.G2 to this predictor list and sites:
+# temp1<-read.csv('Processed_Data/G2_pred_to_keep_2.csv')[,1] # I went in to the variable description excel sheet and isolated these variables as well:
+
+# pred_to_keep<-c("STAID",
+#                 "HYDRO_DISTURB_INDX",
+#                 "pre1990_STOR",
+#                 "FRAGUN_BASIN", # names(l.G2$Landscape_Pat),
+#                 "DEVNLCD06","FORESTNLCD06","PLANTNLCD06", # names(l.G2$LC06_Basin),
+#                 "CDL_CORN", # names(l.G2$LC_Crops),
+#                 "PDEN_2000_BLOCK", "RIP800_DEV", "RIP800_FOREST", "RIP800_PLANT", # temp1,
+#                 'HGA', 'HGB', 'HGC', 'HGD',
+#                 "ELEV_MEDIAN_M_BASIN","ELEV_STD_M_BASIN","RRMEDIAN")
+
+# df.G2.reduced<-df.G2%>%select(c('STAID', pred_to_keep))%>%filter(STAID %in% df.TP_CQ$site_no) # filtering df.G2 to this predictor list and sites:
+
 # df.G2.reduced<-df.G2.reduced%>%
 #   rowwise() %>%
 #   mutate(MAIN_RIP_DEV_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("DEV")), na.rm = TRUE),
@@ -1126,16 +1129,31 @@ df.G2.reduced<-df.G2%>%select(c('STAID', pred_to_keep))%>%filter(STAID %in% df.T
 #          MAIN_RIP_PLANT_avg = mean(c_across(starts_with("MAINS") | starts_with("RIP") & ends_with("PLANT")), na.rm = TRUE),
 #          .keep = 'unused'
 #          ) # take the average of the RIP and MAIN for each land use:
+
 # df.G2.reduced<-df.G2.reduced%>%mutate(sum_of_misc_crops = sum(c_across(ends_with(c("COTTON", "RICE", "SORGHUM", "SUNFLOWERS", "PEANUTS", "BARLEY", "DURUM_WHEAT", "OATS", "DRY_BEANS", "POTATOES", "ORANGES", 'OTHER_CROPS', 'IDLE'))), na.rm = TRUE), .keep = 'unused') # adding up the other crops:
+
 # names(df.G2.reduced) # check
+
 # save(df.G2.reduced, file = 'Processed_Data/df.G2.reduced.Rdata') # export this predictor set for the 42 sites:
+
 load('Processed_Data/df.G2.reduced.Rdata')
 
 # second pass predictors are from datalayers:
 
-# load('Processed_Data/df.datalayers.62.Rdata') # read in datalayers predictors:
-# df.datalayers<-df.datalayers.62 # rename to just df.datalayers to work with correlations workflow:
-# df.datalayers<-df.datalayers%>%filter(!is.na(CSA_perc)) # *note* that one site has NA for pedictors that require soils since it had no sSurgo coverage. I will remove that site:
+load('Processed_Data/df.datalayers.62.Rdata') # read in datalayers predictors:
+
+df.datalayers<-df.datalayers.62 # rename to just df.datalayers to work with correlations workflow:
+
+# convert CSA columns to 0-1 %:
+
+df.datalayers <- df.datalayers%>%
+  mutate(CSA_perc=CSA_perc/100,
+         Ag.CSA_perc=Ag.CSA_perc/100,
+         RIP.CSA.100=RIP.CSA.100/100,
+         RIP.CSA.800=RIP.CSA.800/100)
+
+df.datalayers<-df.datalayers%>%filter(!is.na(CSA_perc)) # *note* that one site has NA for pedictors that require soils since it had no sSurgo coverage. I will remove that site:
+
 # # *note* df.datalayers from second pass does not have column "Dbl_Crop_WinWht/Soybeans"
 # # *note* df.datalayers has 61 sites now. 
 # # It did have 62 sites while df.TP_CQ (for second pass) has 63 sites
@@ -1144,12 +1162,12 @@ load('Processed_Data/df.G2.reduced.Rdata')
 # # when running the MLR
 # # as per a first run of this workflow, remove emergentwetlands, soybeans, winter wheat, grassland
 # # and replace NA with zero (this is ok since I removed the site with NA for soils where a zero would be wrong):
-# df.datalayers<-df.datalayers%>%
-#   select(-c(R_EMERGWETNLCD06, R_SNOWICENLCD06, R_SHRUBNLCD06, R_BARRENNLCD06,R_GRASSNLCD06, Soybeans, Winter_Wheat, `Dbl_Crop_WinWht/Soybeans`, R_WOODYWETNLCD06))%>%
-#   replace(is.na(.), 0)
-# library(corrplot)
-# corrplot(cor(df.datalayers[,-c(1, 10:30)])) # look at correlation matrix:
 
+df.datalayers<-df.datalayers%>%
+  select(-c(R_EMERGWETNLCD06, R_SNOWICENLCD06, R_SHRUBNLCD06, R_BARRENNLCD06,R_GRASSNLCD06, Soybeans, Winter_Wheat, Spring_Wheat, `Dbl_Crop_WinWht/Soybeans`, R_WOODYWETNLCD06))%>%
+  replace(is.na(.), 0)
+
+#
 
 
 
@@ -1166,9 +1184,126 @@ load('Processed_Data/df.G2.reduced.Rdata')
 
 # first pass:
 
-# merge predictor variables with response variable df:
+temp<-left_join(df.Response, df.G2.reduced, by = c('Name'='STAID')) # merge predictor variables with response variable df:
 
-temp<-left_join(df.Response, df.G2.reduced, by = c('Name'='STAID'))
+# second pass:
+
+temp<-left_join(df.Response, df.datalayers, by = 'Name')%>%
+  drop_na(R_CROPSNLCD06)# merge predictor variables with response variable df:
+
+# remove CV_C and CV_Q:
+
+temp <- select(temp, -c(CV_C, CV_Q)) 
+
+# look at correlation matrix of response and predictors:
+
+corr.resp <- round(cor(temp[2:22]), 1)
+
+ggcorrplot(corr.resp, hc.order = TRUE, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 2, 
+           method="square", 
+           colors = c("tomato2", "white", "springgreen3"), 
+           title="Correlogram of Response Variables", 
+           ggtheme=theme_bw)+
+  theme(axis.text.x=element_text(angle=40,hjust=1, size = 7), axis.title.x=element_blank())
+
+corr.pred <- round(cor(temp[23:ncol(temp)]), 1)
+
+ggcorrplot(corr.pred, hc.order = TRUE, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 2, 
+           method="square", 
+           colors = c("tomato2", "white", "springgreen3"), 
+           title="Correlogram of Predictor Variables", 
+           ggtheme=theme_bw)+
+  theme(axis.text.x=element_text(angle=40,hjust=1, size = 7), axis.title.x=element_blank())
+
+# look at univariate plots: to do this:
+
+# create df of response vars with strong correlations:
+
+df.corr.resp<-as.data.frame(corr.resp)%>% 
+  tibble::rownames_to_column(., "Resp")%>%
+  pivot_longer(., cols = -Resp, names_to = 'Resp.2', values_to = 'Cor')%>%
+  filter(., abs(Cor)>0.7)%>%filter(., Resp != Resp.2)%>%
+  select(1,2)
+
+df.corr.pred<-as.data.frame(corr.pred)%>% 
+  tibble::rownames_to_column(., "Pred")%>%
+  pivot_longer(., cols = -Pred, names_to = 'Pred.2', values_to = 'Cor')%>%
+  filter(., abs(Cor)>0.7)%>%filter(., Pred != Pred.2)%>%
+  select(1,2)
+
+# reduce this df down to just unique pairs, then group by and summarize column of Resp.2 for each Resp 1:
+
+df.corr.resp <- unique(t(apply(as.matrix(df.corr.resp), 1, sort)))%>%
+  as.data.frame(.)%>%
+  rename(Resp=1,Resp.2=2)%>%
+  arrange(Resp)%>%
+  group_by(Resp)%>%
+  summarise(Resp.2=list(Resp.2))
+
+df.corr.pred <- unique(t(apply(as.matrix(df.corr.pred), 1, sort)))%>%
+  as.data.frame(.)%>%
+  rename(Pred=1,Pred.2=2)%>%
+  arrange(Pred)%>%
+  group_by(Pred)%>%
+  summarise(Pred.2=list(Pred.2))
+
+# loop through resp. vars. and create plotting df:
+
+df.plot.resp<-data.frame(Resp.1.name=NA,Resp.1.value=NA,Resp.2.name=NA,Resp.2.value=NA)
+
+for (i in seq_along(df.corr.resp$Resp)){
+  
+  df <- temp%>%
+    select(df.corr.resp$Resp[i], any_of(df.corr.resp$Resp.2[i][[1]]))%>%
+    pivot_longer(cols = -c(df.corr.resp$Resp[i]), names_to = 'Resp.2.name', values_to = 'Resp.2.value')%>%
+    pivot_longer(cols = c(df.corr.resp$Resp[i]), names_to = 'Resp.1.name', values_to = 'Resp.1.value')%>%
+    select(c(3,4,1,2))
+  
+  df.plot.resp <- bind_rows(df.plot.resp, df)
+  
+}
+
+df.plot.resp <- df.plot.resp[-1,]
+
+df.plot.pred<-data.frame(Pred.1.name=NA,Pred.1.value=NA,Pred.2.name=NA,Pred.2.value=NA)
+
+for (i in seq_along(df.corr.pred$Pred)){
+  
+  df <- temp%>%
+    select(df.corr.pred$Pred[i], any_of(df.corr.pred$Pred.2[i][[1]]))%>%
+    pivot_longer(cols = -c(df.corr.pred$Pred[i]), names_to = 'Pred.2.name', values_to = 'Pred.2.value')%>%
+    pivot_longer(cols = c(df.corr.pred$Pred[i]), names_to = 'Pred.1.name', values_to = 'Pred.1.value')%>%
+    select(c(3,4,1,2))
+  
+  df.plot.pred <- bind_rows(df.plot.pred, df)
+  
+}
+
+df.plot.pred <- df.plot.pred[-1,]
+
+# make plot:
+
+ggplot(df.plot.resp,aes(x=Resp.1.value, y=Resp.2.value, color = Resp.2.name))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  facet_wrap('Resp.1.name', scales = 'free')
+
+ggplot(df.plot.pred,aes(x=Pred.1.value, y=Pred.2.value, color = Pred.2.name))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  facet_wrap('Pred.1.name', scales = 'free')
+
+#
+
+
+
+
 
 # now run correlations between intercepts and slopes and watershed characteristics. to do this: (I orginally did this workflow using n_months (C:\PhD\Research\Mohawk\Code\Mohawk_Regression-analyizing_predictor_df.R)
 
@@ -1176,11 +1311,15 @@ temp<-left_join(df.Response, df.G2.reduced, by = c('Name'='STAID'))
 
 n_sites<-dim(temp)[1]
 
+# look at names of temp to see which columns are respose variables:
+
+names(temp)
+
 # use the corrr package to correlate() and focus() on your variable of choice.
 
 df.cor <- temp %>%
   correlate(method = 'spearman') %>%
-  focus(2:24)%>%
+  focus(2:22)%>%
   pivot_longer(cols= -term, names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
   mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
   mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
@@ -1210,15 +1349,20 @@ df.cor<-filter(df.cor, sig_0.05=='sig')
 
 unique(df.cor$term)
 
-# group_by predictor and arrange by signficance:
+# set up df.cor for correlation matrix:
 
-x<-df.cor%>%
-  mutate(SC_abs=abs(Spearman_Correlation))%>%
-  group_by(CQ_Parameter)%>%
-  slice_max(SC_abs, n=5)
 
-ggplot(x,aes(x=term, y=Spearman_Correlation, fill=CQ_Parameter))+
-  geom_bar(stat="identity", color="black", position=position_dodge())+
+
+# try some ggplots:
+
+library(ggcorrplot)
+
+
+data(mtcars)
+corr <- round(cor(mtcars), 1)
+
+ggplot(x,aes(x=term, y=Spearman_Correlation, color=CQ_Parameter))+
+  geom_point()+
   theme_minimal()+
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
   
