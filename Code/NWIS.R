@@ -583,7 +583,7 @@ df.RP <- df.TP_CQ%>%
   filter(is.finite(log_C))%>%
   filter(is.finite(log_Q))
 
-l.Q<-df.NWIS.Q%>%
+l.Q<-df.NWIS.Q%>% # this gives list of dfs of average annual hydrograph for each site
   filter(site_no %in% df.RP$Name)%>%
   mutate(Date = as.Date(Date))%>%
   mutate(year = year(Date), Date = as.Date(format(Date, "%m-%d"), "%m-%d"))%>%
@@ -882,8 +882,8 @@ temp.base<-df.RP%>%
   group_by(Name)%>%
   filter(Q_type == 'Baseflow')%>%
   do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
-  summarize(., OLS.Int.2s_Baseflow_simple = OLS.co[1], 
-            OLS.Slope.2s__Baseflow_simple = OLS.co[2])
+  summarize(., OLS.Int.2s_hydrosep_pre = OLS.co[1], 
+            OLS.Slope.2s_hydrosep_pre = OLS.co[2])
   }) %>%
   ungroup
 
@@ -891,8 +891,8 @@ temp.storm<-df.RP%>%
   group_by(Name)%>%
   filter(Q_type == 'Stormflow')%>%
   do({ OLS.co <- coef(lm(log_C ~ log_Q, .))
-  summarize(., OLS.Int.2s_Stormflow_simple = OLS.co[1], 
-            OLS.Slope.2s_Stormflow_simple = OLS.co[2])
+  summarize(., OLS.Int.2s_hydrosep_post = OLS.co[1], 
+            OLS.Slope.2s_hydrosep_post = OLS.co[2])
   }) %>%
   ungroup
 
@@ -935,7 +935,7 @@ l.pred.C<-lapply(seq_along(l.lm.pre), \(i) l.Q[[i]]%>%mutate(pred.C = ifelse(mea
 
 l.Yield<-lapply(names(l.lm), \(i) l.pred.C[[i]]$pred.C*l.Q.v[[i]]*(1/l.DA[[i]])*unit_conversion)%>%purrr::set_names(names(l.Q))
 
-df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_longer(cols = everything(), names_to = 'Name', values_to = 'OLS.AANY.2s.Hydro.Sep') # units of kg/ha/year
+df.Yield <- lapply(l.Yield, sum)%>%dplyr::bind_rows(., .id = 'Name')%>%pivot_longer(cols = everything(), names_to = 'Name', values_to = 'OLS.AANY.2s.hydrosep') # units of kg/ha/year
 
 df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
 
@@ -1070,6 +1070,54 @@ df.medC <- df.RP%>%
 
 df.Response <- left_join(df.OLS, df.CV, by = 'Name')%>%
   left_join(.,df.medC, by = 'Name')
+
+# look at distribution of response variables:
+
+# set up plotting df:
+
+x <- df.Response%>%select(-c(Name, CV_C, CV_Q))%>%
+  pivot_longer(cols = everything())%>%
+  mutate(group = case_when(grepl("AANY", name) ~ "AANY",
+                           grepl("Int", name) & grepl("pre", name) ~ "Int_pre",
+                           grepl("Int", name) & grepl("1s", name) ~ "Int_post",
+                           grepl("Int", name) & grepl("post", name) ~ "Int_post",
+                           grepl("Slope", name) & grepl("pre", name) ~ "Slope_pre",
+                           grepl("Slope", name) & grepl("1s", name) ~ "Slope_post",
+                           grepl("Slope", name) & grepl("post", name) ~ "Slope_post"))%>%
+  mutate(group = ifelse(is.na(group), 'Other', group))%>%
+  mutate(name2 = case_when(grepl("1s", name) ~ "1s",
+                          grepl("hydrosep", name) ~ "hydrosep",
+                          grepl("medC", name) ~ "medC",
+                          grepl("medQ", name) ~ "medQ",
+                          grepl("CV_CQ", name) ~ "CV_CQ",
+                          grepl("meanC", name) ~ "meanC",
+                          ))
+
+library(gridExtra)
+
+xs <- split(x,f = x$group)
+
+# density plot:
+
+# p1 <- ggplot(xs[[1]],aes(x=value, color = name2, fill = name2)) + 
+#   geom_density(alpha=0.5, position="identity")+
+#   facet_wrap(~group, ncol=3)
+
+# violin plot:
+
+p1<-ggplot(xs[[1]],aes(x=name2, y=value))+
+  geom_violin()+
+  geom_hline(yintercept=0,color='red')+
+  facet_wrap(~group, ncol=3)
+  
+
+p2 <- p1 %+% xs[[2]]
+p3 <- p1 %+% xs[[3]]
+p4 <- p1 %+% xs[[4]]
+p5 <- p1 %+% xs[[5]]
+p6 <- p1 %+% xs[[6]]
+
+grid.arrange(p1,p2,p3,p4,p5,p6)
 
 #
 
@@ -1209,7 +1257,7 @@ ggcorrplot(corr.resp, hc.order = TRUE,
            ggtheme=theme_bw)+
   theme(axis.text.x=element_text(angle=40,hjust=1, size = 7), axis.title.x=element_blank())
 
-corr.pred <- round(cor(temp[23:ncol(temp)]), 1)
+corr.pred <- round(cor(temp[23:ncol(temp)-1]), 1)
 
 ggcorrplot(corr.pred, hc.order = TRUE, 
            type = "lower", 
@@ -1301,10 +1349,6 @@ ggplot(df.plot.pred,aes(x=Pred.1.value, y=Pred.2.value, color = Pred.2.name))+
 
 #
 
-
-
-
-
 # now run correlations between intercepts and slopes and watershed characteristics. to do this: (I orginally did this workflow using n_months (C:\PhD\Research\Mohawk\Code\Mohawk_Regression-analyizing_predictor_df.R)
 
 # set up variable for number of sites:
@@ -1348,30 +1392,13 @@ df.cor<-filter(df.cor, sig_0.05=='sig')
 # see how many unique predictors are signficant:
 
 unique(df.cor$term)
-
-# set up df.cor for correlation matrix:
-
-
-
-# try some ggplots:
-
-library(ggcorrplot)
-
-
-data(mtcars)
-corr <- round(cor(mtcars), 1)
-
-ggplot(x,aes(x=term, y=Spearman_Correlation, color=CQ_Parameter))+
-  geom_point()+
-  theme_minimal()+
-  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
   
 # create a list of each CQ parameter and format it for ggplotting:
 
 l.cor<-df.cor %>%
   split(., df.cor$CQ_Parameter)%>%
   lapply(., \(i) i%>%
-           arrange(Spearman_Correlation))%>%
+           arrange(Spearman_Correlation)%>%
            slice_head(n = 10)%>%
            bind_rows(i%>%arrange(desc(Spearman_Correlation))%>%slice_head(n = 7))%>%
            mutate(sig_0.05 = factor(sig_0.05, levels = c('not', 'sig')))%>%
