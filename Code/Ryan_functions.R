@@ -1131,10 +1131,217 @@ fun.R.modelEstimation<-function(eList){
   
 }
 
+# funtion to extract lm from results of train w/ forward selection:
 
+# model <- l.step.model[[2]]
+# 
+# x <- model$finalModel
+# 
+# x
+# 
+# as.numeric(model$bestTune)
+# 
+# coef(x, as.numeric(model$bestTune)-2)
+# 
+# df <- l.setup.MLR[[i]]
 
+fun.train.MLR.to.lm <- function(model, df){
+  
+  # get df of just the predictors in this model:
+  
+  pred<-names(coef(model$finalModel, as.numeric(model$bestTune)))[-1]
+  
+  # remove potential backticks:
+  
+  pred<-gsub("`", "", pred)
+  
+  # select down df:
+  
+  df.2<-df%>%select(term, pred)
+  
+  # make lm:
+  
+  m<-lm(term~., data=df.2)
+  
+  # Return:
+  
+  return(m)
+  
+}
 
+# function to extract significant model terms:
 
+# model <- l.m.final[[i]]
 
+fun.extract.sig.model.terms <- function(model){
+  
+  v.sig <- coef(summary(model))[,4][-1]
+  
+  v.sig.names <- names(v.sig[v.sig<0.05])
+  
+  return(v.sig.names)
+  
+}
+
+# function to compare full lm, regsbsest, and stepAIC models:
+
+i <- 6
+
+# df <- l.setup.MLR[[i]]
+
+fun.compare.linear.model.selections <- function(df, nbest = 1){
+  
+  # Step 1):
+  
+  # build full model:
+  
+  m.1 <- lm(term~., df)
+  
+  # extract signficant predictors name and coef:
+  
+  coef.pvals <- coef(summary(m.1))[,4][-1]
+  v.terms.coef.names <- names(coef.pvals[coef.pvals<0.05])
+  v.terms.coef <- coef(summary(m.1))[,1][-1][coef(summary(m.1))[,4][-1]<0.05]
+  df.coef.1 <- data.frame(name=v.terms.coef.names,value=v.terms.coef)
+  rownames(df.coef.1) <- NULL
+  
+  # extract adjR2 and vif:
+  
+  if(dim(df.coef.1)[1]!=0){
+    df.coef.1$adjR2 <- summary(m.1)$adj.r.squared
+    ifelse(length(m.1$coefficients)>2, df.vif <- car::vif(m.1) %>% as.data.frame() %>% tibble::rownames_to_column(., "name") %>% rename(vif=2) %>% mutate(name = gsub("`", "", name)), df.vif <- data.frame(name=names(m.1$coefficients[2]), vif=NA))
+    # df.vif <- car::vif(m.1) %>% as.data.frame() %>% tibble::rownames_to_column(., "name") %>% rename(vif=2) %>% mutate(name = gsub("`", "", name))
+    df.coef.1 <- left_join(df.coef.1, df.vif, by = 'name')
+  }
+  
+  
+  # Step 2)
+  
+  # build regsubset model:
+  
+  Best_Subset <- regsubsets(term~., data =df,
+                            nbest = 1,      # 1 best model for each number of predictors
+                            nvmax = 6,    # NULL for no limit on number of variables
+                            force.in = NULL, 
+                            force.out = NULL,
+                            method = "exhaustive")
+  
+  # find best model:
+  
+  highest.adjR2 <- which.max(summary(Best_Subset)$adjr2)
+  
+  # extract predictors from best model:
+  
+  preds <- names(coef(Best_Subset, highest.adjR2))[-1]
+  
+  # remove potential backticks:
+  
+  preds<-gsub("`", "", preds)
+  
+  # build lm with best predictors:
+  
+  m.2 <- lm(term ~ ., data = df %>% select(term, preds))
+  
+  # extract signficant predictors name and coef:
+  
+  coef.pvals <- coef(summary(m.2))[,4][-1]
+  v.terms.coef.names <- names(coef.pvals[coef.pvals<0.05])
+  v.terms.coef <- coef(summary(m.2))[,1][-1][coef(summary(m.2))[,4][-1]<0.05]
+  df.coef.2 <- data.frame(name=v.terms.coef.names,value=v.terms.coef)
+  rownames(df.coef.2) <- NULL
+  
+  # extract adjR2:
+  
+  if(dim(df.coef.2)[1]!=0){
+    df.coef.2$adjR2 <- summary(m.2)$adj.r.squared
+    ifelse(length(m.2$coefficients)>2, df.vif <- car::vif(m.2) %>% as.data.frame() %>% tibble::rownames_to_column(., "name") %>% rename(vif=2) %>% mutate(name = gsub("`", "", name)), df.vif <- data.frame(name=names(m.2$coefficients[2]), vif=NA))
+    # df.vif <- car::vif(m.2) %>% as.data.frame() %>% tibble::rownames_to_column(., "name") %>% rename(vif=2) %>% mutate(name = gsub("`", "", name))
+    df.coef.2 <- left_join(df.coef.2, df.vif, by = 'name')
+  }
+  
+  # Step 3)
+  
+  # build stepAIC model:
+  
+  m.3 <- stepAIC(m.1, direction = "both", trace = FALSE)
+  
+  # extract signficant predictors name and coef:
+  
+  coef.pvals <- coef(summary(m.3))[,4][-1]
+  v.terms.coef.names <- names(coef.pvals[coef.pvals<0.05])
+  v.terms.coef <- coef(summary(m.3))[,1][-1][coef(summary(m.3))[,4][-1]<0.05]
+  df.coef.3 <- data.frame(name=v.terms.coef.names,value=v.terms.coef)
+  rownames(df.coef.3) <- NULL
+  
+  # extract adjR2:
+  
+  if(dim(df.coef.3)[1]!=0){
+    df.coef.3$adjR2 <- summary(m.3)$adj.r.squared
+    ifelse(length(m.3$coefficients)>2, df.vif <- car::vif(m.3) %>% as.data.frame() %>% tibble::rownames_to_column(., "name") %>% rename(vif=2) %>% mutate(name = gsub("`", "", name)), df.vif <- data.frame(name=names(m.3$coefficients[2]), vif=NA))
+    df.coef.3 <- left_join(df.coef.3, df.vif, by = 'name')
+  }
+  
+  # Step 4) 
+  
+  # combine df.coef's into single df:
+  
+  df.coef <- list(df.coef.1, df.coef.2, df.coef.3) %>% 
+    purrr::set_names(c('Full.lm', 'regsubset', 'stepAIC')) %>% 
+    bind_rows(., .id='Type') # %>%
+    # pivot_wider(names_from = name)
+  
+  # note if df.coef.1, 2, and 3 have no observations, you cannont arrage by adjR2:
+  
+  if(dim(df.coef)[1]!=0){
+    df.coef <- df.coef %>%
+      arrange(desc(adjR2))
+  }
+  
+  return(df.coef) 
+  
+}
+
+# trouble shoot function:
+
+for (i in seq_along(l.setup.MLR)){
+
+  fun.compare.linear.model.selections(l.setup.MLR[[i]])
+}
+
+# function to compute best MLR model
+# note* uses function from above:
+
+i <- 5
+
+# df <- l.setup.MLR[[i]]
+
+fun.build.best.lm <- function(df, nbest = 1){
+  
+  # initalize df.coef using function:
+  
+  df.compare <- fun.compare.linear.model.selections(df)
+  
+  # get signficant predictors from the best model:
+  
+  preds <- df.compare$name[df.compare$Type==df.compare$Type[which.max(df.compare$adjR2)]]
+  
+  # select term and these predictors only, and also add in the highly correlated one left in:
+  
+  df1 <- select(df, c(term, preds))
+  df2 <- select(df, c(term, preds, highCorr[leave]))
+  
+  # build model with these predictor sets:
+  
+  m.1 <- lm(term~.,data=df1)
+  m.2 <- lm(term~.,data=df2)
+  m.3 <- lm(term~.,data=df)
+  
+  # extract model results:
+  
+  summary(m.1)
+  summary(m.2)
+  summary(m.3)
+  
+}
 
 

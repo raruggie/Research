@@ -40,6 +40,9 @@ library(tmap)
 library(readxl)
 library(zyp)
 library(corrr)
+library(gridExtra)
+library(caret)
+set.seed(123)
 library(tidyverse)
 
 sf_use_s2(TRUE) # for sf
@@ -600,7 +603,7 @@ l.Q.2<-df.Q%>% # this gives list of dfs of complete hydrographs for each site
 
 l.Q.v<-lapply(l.Q, \(i) i$mean_Q) # list of vectors of just the mean annual hydrographs
 
-l.DA<-readNWISsite(siteNumbers = names(l.Q))%>%select(site_no, drain_area_va)%>%split(., .$site_no)%>%lapply(., \(i) i$drain_area_va)
+l.DA<-df.NWIS.TP_site_metadata %>% filter(site_no %in% names(l.Q))%>%select(site_no, drain_area_va)%>%split(., .$site_no)%>%lapply(., \(i) i$drain_area_va)
 
 unit_conversion=28.3168*86400*(1/1000)*(1/1000)*(1/258.999) # mg/L * ft^3/sec * 28.3168 L/ft3 * 86400 sec /day * 1g/1000mg * 1kg/1000g * 1/mi^2 * 1mi^2/258.999 ha = kg/ha/day
 
@@ -1121,8 +1124,28 @@ df.medC <- df.RP%>%
 
 # x<-l.eList[[11]]$INFO
 
-#
+#### ~ 4) Simple AANY ####
 
+# calculate yield for each CQ observation (i.e. day):
+
+l.AANY.simple <- lapply(names(l.RP), \(i) l.RP[[i]]$C*l.RP[[i]]$Q*(1/l.DA[[i]])*unit_conversion)%>%purrr::set_names(names(l.RP))
+
+# take the average over all observations to get mean daily yield:
+
+l.AANY.simple <- lapply(l.AANY.simple, mean)
+
+# then multiply by 365:
+
+l.AANY.simple <- lapply(l.AANY.simple, \(i) i*365)
+
+# convert to df:
+
+df.Yield <- bind_rows(l.AANY.simple) %>% pivot_longer(cols = everything(), names_to = 'Name', values_to = 'AANY.simple')
+
+# merge with df.OLS:
+
+df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
+ 
 #### ~ Putting response variables together into single df: ####
 
 df.Response <- left_join(df.OLS, df.CV, by = 'Name')%>%
@@ -1148,6 +1171,7 @@ df.plot <- df.Response%>%select(-c(Name, CV_C, CV_Q))%>%
                           grepl("medQ", name) ~ "medQ",
                           grepl("CV_CQ", name) ~ "CV_CQ",
                           grepl("meanC", name) ~ "meanC",
+                          grepl("simple", name) ~ "simple"
                           ))%>%
   mutate(name2 = ifelse(grepl('method2',name), paste(name2, 'method2'), name2))
 
@@ -1315,28 +1339,46 @@ df.datalayers<-df.datalayers%>%
 
 
 
-#### Correlations ####
+#### Correlations and MLR ####
+
+# merge response and predictors:
 
 # first pass:
 
-temp<-left_join(df.Response, df.G2.reduced, by = c('Name'='STAID')) # merge predictor variables with response variable df:
+df.setup<-left_join(df.Response, df.G2.reduced, by = c('Name'='STAID')) # merge predictor variables with response variable df:
 
 # second pass:
 
-temp<-left_join(df.Response, df.datalayers, by = 'Name')%>%
+df.setup<-left_join(df.Response, df.datalayers, by = 'Name')%>%
   drop_na(R_CROPSNLCD06)# merge predictor variables with response variable df:
 
-# remove CV_C and CV_Q:
+# remove CV_C and CV_Q,and n
 
-temp <- select(temp, -c(CV_C, CV_Q)) 
+df.setup <- select(df.setup, -c(CV_C, CV_Q, n)) 
 
 # remove method 1 AANY:
 
-temp <- select(temp,-matches("AANY.*method2"))
+df.setup <- select(df.setup, -c(matches("AANY")&!contains(c("method2", 'simple'))))
+
+# Remove water, HSG.coverage, forest types:
+
+df.setup <- select(df.setup, -c(R_WATERNLCD06, HSG.coverage, R_MIXEDFORNLCD06, R_EVERGRNLCD06, R_DECIDNLCD06))
+
+# save(df.setup, file='Processed_Data/df.setup.Rdata')
+
+# set up seq of column numbers of response and predictors in df.setup:
+
+names(df.setup)
+
+v.resp.cols <- 2:18
+
+v.pred.cols <- 19:ncol(df.setup)
 
 # look at correlation matrix of response and predictors:
 
-corr.resp <- round(cor(temp[2:17]), 1)
+# response :
+
+corr.resp <- round(cor(df.setup[v.resp.cols], method = 's'), 1)
 
 ggcorrplot(corr.resp, hc.order = TRUE, 
            type = "lower", 
@@ -1348,113 +1390,117 @@ ggcorrplot(corr.resp, hc.order = TRUE,
            ggtheme=theme_bw)+
   theme(axis.text.x=element_text(angle=40,hjust=1, size = 7), axis.title.x=element_blank())
 
-corr.pred <- round(cor(temp[23:ncol(temp)-1]), 1)
+# predictors:
 
-ggcorrplot(corr.pred, hc.order = TRUE, 
+corr.pred <- round(cor(df.setup[v.pred.cols], method = 's'), 1)
+
+ggcorrplot(corr.pred, 
+           hc.order = T, 
+           hc.method = "mcquitty",
            type = "lower", 
            lab = TRUE, 
-           lab_size = 2, 
+           lab_size = 2,
            method="square", 
            colors = c("tomato2", "white", "springgreen3"), 
            title="Correlogram of Predictor Variables", 
            ggtheme=theme_bw)+
   theme(axis.text.x=element_text(angle=40,hjust=1, size = 7), axis.title.x=element_blank())
 
-# look at univariate plots: to do this:
+# look at univariate plots among response variables: to do this:
 
-# create df of response vars with strong correlations:
-
-df.corr.resp<-as.data.frame(corr.resp)%>% 
-  tibble::rownames_to_column(., "Resp")%>%
-  pivot_longer(., cols = -Resp, names_to = 'Resp.2', values_to = 'Cor')%>%
-  filter(., abs(Cor)>0.7)%>%filter(., Resp != Resp.2)%>%
-  select(1,2)
-
-df.corr.pred<-as.data.frame(corr.pred)%>% 
-  tibble::rownames_to_column(., "Pred")%>%
-  pivot_longer(., cols = -Pred, names_to = 'Pred.2', values_to = 'Cor')%>%
-  filter(., abs(Cor)>0.7)%>%filter(., Pred != Pred.2)%>%
-  select(1,2)
-
-# reduce this df down to just unique pairs, then group by and summarize column of Resp.2 for each Resp 1:
-
-df.corr.resp <- unique(t(apply(as.matrix(df.corr.resp), 1, sort)))%>%
-  as.data.frame(.)%>%
-  rename(Resp=1,Resp.2=2)%>%
-  arrange(Resp)%>%
-  group_by(Resp)%>%
-  summarise(Resp.2=list(Resp.2))
-
-df.corr.pred <- unique(t(apply(as.matrix(df.corr.pred), 1, sort)))%>%
-  as.data.frame(.)%>%
-  rename(Pred=1,Pred.2=2)%>%
-  arrange(Pred)%>%
-  group_by(Pred)%>%
-  summarise(Pred.2=list(Pred.2))
-
-# loop through resp. vars. and create plotting df:
-
-df.plot.resp<-data.frame(Resp.1.name=NA,Resp.1.value=NA,Resp.2.name=NA,Resp.2.value=NA)
-
-for (i in seq_along(df.corr.resp$Resp)){
-  
-  df <- temp%>%
-    select(df.corr.resp$Resp[i], any_of(df.corr.resp$Resp.2[i][[1]]))%>%
-    pivot_longer(cols = -c(df.corr.resp$Resp[i]), names_to = 'Resp.2.name', values_to = 'Resp.2.value')%>%
-    pivot_longer(cols = c(df.corr.resp$Resp[i]), names_to = 'Resp.1.name', values_to = 'Resp.1.value')%>%
-    select(c(3,4,1,2))
-  
-  df.plot.resp <- bind_rows(df.plot.resp, df)
-  
-}
-
-df.plot.resp <- df.plot.resp[-1,]
-
-df.plot.pred<-data.frame(Pred.1.name=NA,Pred.1.value=NA,Pred.2.name=NA,Pred.2.value=NA)
-
-for (i in seq_along(df.corr.pred$Pred)){
-  
-  df <- temp%>%
-    select(df.corr.pred$Pred[i], any_of(df.corr.pred$Pred.2[i][[1]]))%>%
-    pivot_longer(cols = -c(df.corr.pred$Pred[i]), names_to = 'Pred.2.name', values_to = 'Pred.2.value')%>%
-    pivot_longer(cols = c(df.corr.pred$Pred[i]), names_to = 'Pred.1.name', values_to = 'Pred.1.value')%>%
-    select(c(3,4,1,2))
-  
-  df.plot.pred <- bind_rows(df.plot.pred, df)
-  
-}
-
-df.plot.pred <- df.plot.pred[-1,]
-
-# make plot:
-
-ggplot(df.plot.resp,aes(x=Resp.1.value, y=Resp.2.value, color = Resp.2.name))+
-  geom_point()+
-  geom_smooth(method = 'lm')+
-  facet_wrap('Resp.1.name', scales = 'free')
-
-ggplot(df.plot.pred,aes(x=Pred.1.value, y=Pred.2.value, color = Pred.2.name))+
-  geom_point()+
-  geom_smooth(method = 'lm')+
-  facet_wrap('Pred.1.name', scales = 'free')
+# # create df of response vars with strong correlations:
+# 
+# df.corr.resp<-as.data.frame(corr.resp)%>% 
+#   tibble::rownames_to_column(., "Resp")%>%
+#   pivot_longer(., cols = -Resp, names_to = 'Resp.2', values_to = 'Cor')%>%
+#   filter(., abs(Cor)>0.7)%>%filter(., Resp != Resp.2)%>%
+#   select(1,2)
+# 
+# df.corr.pred<-as.data.frame(corr.pred)%>% 
+#   tibble::rownames_to_column(., "Pred")%>%
+#   pivot_longer(., cols = -Pred, names_to = 'Pred.2', values_to = 'Cor')%>%
+#   filter(., abs(Cor)>0.7)%>%filter(., Pred != Pred.2)%>%
+#   select(1,2)
+# 
+# # reduce this df down to just unique pairs, then group by and summarize column of Resp.2 for each Resp 1:
+# 
+# df.corr.resp <- unique(t(apply(as.matrix(df.corr.resp), 1, sort)))%>%
+#   as.data.frame(.)%>%
+#   rename(Resp=1,Resp.2=2)%>%
+#   arrange(Resp)%>%
+#   group_by(Resp)%>%
+#   summarise(Resp.2=list(Resp.2))
+# 
+# df.corr.pred <- unique(t(apply(as.matrix(df.corr.pred), 1, sort)))%>%
+#   as.data.frame(.)%>%
+#   rename(Pred=1,Pred.2=2)%>%
+#   arrange(Pred)%>%
+#   group_by(Pred)%>%
+#   summarise(Pred.2=list(Pred.2))
+# 
+# # loop through resp. vars. and create plotting df:
+# 
+# df.plot.resp<-data.frame(Resp.1.name=NA,Resp.1.value=NA,Resp.2.name=NA,Resp.2.value=NA)
+# 
+# for (i in seq_along(df.corr.resp$Resp)){
+#   
+#   df <- df.setup%>%
+#     select(df.corr.resp$Resp[i], any_of(df.corr.resp$Resp.2[i][[1]]))%>%
+#     pivot_longer(cols = -c(df.corr.resp$Resp[i]), names_to = 'Resp.2.name', values_to = 'Resp.2.value')%>%
+#     pivot_longer(cols = c(df.corr.resp$Resp[i]), names_to = 'Resp.1.name', values_to = 'Resp.1.value')%>%
+#     select(c(3,4,1,2))
+#   
+#   df.plot.resp <- bind_rows(df.plot.resp, df)
+#   
+# }
+# 
+# df.plot.resp <- df.plot.resp[-1,]
+# 
+# df.plot.pred<-data.frame(Pred.1.name=NA,Pred.1.value=NA,Pred.2.name=NA,Pred.2.value=NA)
+# 
+# for (i in seq_along(df.corr.pred$Pred)){
+#   
+#   df <- df.setup%>%
+#     select(df.corr.pred$Pred[i], any_of(df.corr.pred$Pred.2[i][[1]]))%>%
+#     pivot_longer(cols = -c(df.corr.pred$Pred[i]), names_to = 'Pred.2.name', values_to = 'Pred.2.value')%>%
+#     pivot_longer(cols = c(df.corr.pred$Pred[i]), names_to = 'Pred.1.name', values_to = 'Pred.1.value')%>%
+#     select(c(3,4,1,2))
+#   
+#   df.plot.pred <- bind_rows(df.plot.pred, df)
+#   
+# }
+# 
+# df.plot.pred <- df.plot.pred[-1,]
+# 
+# # make plot:
+# 
+# ggplot(df.plot.resp,aes(x=Resp.1.value, y=Resp.2.value, color = Resp.2.name))+
+#   geom_point()+
+#   geom_smooth(method = 'lm')+
+#   facet_wrap('Resp.1.name', scales = 'free')
+# 
+# ggplot(df.plot.pred,aes(x=Pred.1.value, y=Pred.2.value, color = Pred.2.name))+
+#   geom_point()+
+#   geom_smooth(method = 'lm')+
+#   facet_wrap('Pred.1.name', scales = 'free')
 
 #
 
-# now run correlations between intercepts and slopes and watershed characteristics. to do this: (I orginally did this workflow using n_months (C:\PhD\Research\Mohawk\Code\Mohawk_Regression-analyizing_predictor_df.R)
+# now run correlations between response and predictor variables. to do this: (I orginally did this workflow using n_months (C:\PhD\Research\Mohawk\Code\Mohawk_Regression-analyizing_predictor_df.R)
 
 # set up variable for number of sites:
 
-n_sites<-dim(temp)[1]
+n_sites<-dim(df.setup)[1]
 
-# look at names of temp to see which columns are respose variables:
+# look at names of df.setup to see which columns are respose variables:
 
-names(temp)
+names(df.setup)
 
 # use the corrr package to correlate() and focus() on your variable of choice.
 
-df.cor <- temp %>%
-  correlate(method = 'spearman') %>%
-  focus(2:22)%>%
+df.cor <- df.setup %>%
+  corrr::correlate(method = 'spearman') %>%
+  corrr::focus(2:18)%>%
   pivot_longer(cols= -term, names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
   mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
   mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
@@ -1480,10 +1526,269 @@ df.cor <- temp %>%
 
 df.cor<-filter(df.cor, sig_0.05=='sig')
 
+# extract just the top 10 correlates for each response variable:
+
+df.cor.top10 <- df.cor%>%group_by(CQ_Parameter)%>%arrange(desc(abs(Spearman_Correlation)))%>%slice_max(abs(Spearman_Correlation), n=3) %>% ungroup()
+  
 # see how many unique predictors are signficant:
 
-unique(df.cor$term)
+unique(df.cor.top10$term)
+
+# make plot:
+
+ggplot(df.cor.top10, aes(x=term, y=Spearman_Correlation, color=term))+
+  geom_bar(stat = "identity")+
+  # theme(axis.title.y=element_blank())+
+  facet_wrap(~CQ_Parameter, ncol = 4,scales="free")
+
+#### Model Building ####
+
+# set up list for each response variable:
+
+l.setup <- lapply(v.resp.cols, \(i) df.setup[,c(i, v.pred.cols)] %>% rename(term = 1)) %>% purrr::set_names(names(df.setup[v.resp.cols]))
+
+# set up list for just AANY, med/mean C, and CV C/Q response variables:
+
+l.setup.AANY <- l.setup[grep("AANY|C", names(l.setup))] 
+
+#### ~ MLR ####
+
+#### ~| VIF proof of multicolineatiry ####
+
+# run full model and calculate vif:
+
+l.lm.full <- lapply(l.setup, \(i) lm(term ~ ., data = i))
+
+l.vif.full <- lapply(l.lm.full, car::vif)
+
+# doesnt run: 'Error: there are aliased coefficients in the model'
+
+#### ~| real v.s. log space models ####
+
+# wont work, zeros in data
+
+#### ~| Remove all but one highly Correlated ####
+
+# find correlation:
+
+highCorr <- findCorrelation(corr.pred, .75, names = T) # find highly correlated columns:
+
+# loop through these variables and save kable table:
+
+leave <- 1
+
+for (leave in seq_along(highCorr)){
   
+  # look at correlaogram again:
+  
+  # x <- select(df.setup, -highCorr[-leave]) # remove all but one of these from predictor list
+  # corr.pred <- round(cor(x[19:ncol(x)], method = 's'), 1) # rerun correlation matrix:
+  # ggcorrplot(corr.pred,
+  #            hc.order = T,
+  #            hc.method = "mcquitty",
+  #            type = "lower",
+  #            lab = TRUE,
+  #            lab_size = 2,
+  #            method="square",
+  #            colors = c("tomato2", "white", "springgreen3"),
+  #            title="Correlogram of Predictor Variables",
+  #            ggtheme=theme_bw)+
+  #   theme(axis.text.x=element_text(angle=40,hjust=1, size = 7), axis.title.x=element_blank())
+  
+  # looks good
+  
+  # remove all but one of the highly correlated predictors from l.setup:
+  
+  l.setup.MLR <- lapply(l.setup.AANY, \(i) select(i, -highCorr[-leave]))
+  
+  # look at example correlation between resp. and predictors:
+  
+  # x <- l.setup.MLR[[1]] %>% pivot_longer(cols=-term)
+  # 
+  # ggplot(x, aes(x=value, y=term))+
+  #   geom_point()+
+  #   geom_smooth(method='lm')+
+  #   facet_wrap(~name,scales='free')
+  
+  # build and compare models using full lm, regsubsets, and stepAIC:
+  
+  df.m.compare <- lapply(l.setup.MLR, fun.compare.linear.model.selections) %>% 
+    purrr::set_names(names(l.setup.MLR)) %>% 
+    bind_rows(., .id='Resp') 
+  
+  # look at just the top models for each response variable:
+  
+  df.table <- df.m.compare %>% 
+    group_by(Resp) %>% 
+    slice_max(order_by = adjR2, n = 1) %>% 
+    slice(1) %>% 
+    mutate(Resp = paste(Resp, '-', round(adjR2,2))) %>% 
+    mutate(Resp = gsub("OLS.", "", Resp)) %>% 
+    arrange(desc(adjR2)) %>% 
+    select(-c(Type, adjR2)) %>% 
+    select_if(~sum(!is.na(.)) > 0) %>% 
+    rename('Resp - AdjR2'=1)
+  
+  df.table %>%
+    kbl(caption = "Table ?") %>%
+    kable_classic(full_width = F, html_font = "Times") %>% 
+    row_spec(seq(1,nrow(df.table),2), background="#FF000020") %>% 
+    column_spec(which(names(df.table)==highCorr[leave]), background = 'yellow')
+  
+}
+
+
+# subsitute other highly correlated predictors for the one that was 
+# kept (i.e. highCorr[1]):
+
+highCorr[leave]
+
+#
+
+
+
+
+
+
+# Train the models:
+
+l.step.model <- lapply(l.setup.MLR, \(i) train(term ~., data = i,
+                                method = "leapForward", 
+                                tuneGrid = data.frame(nvmax = 1:5),
+                                trControl = trainControl(method = "cv", number = 10)
+))
+
+# build MLR lm using function to build lm from terms in step.model$finalmodel final model :
+
+l.m.final <- lapply(names(l.step.model), \(i) fun.train.MLR.to.lm(l.step.model[[i]], l.setup.MLR[[i]])) %>% purrr::set_names(names(l.step.model))
+
+# extract significant model terms:
+
+l.terms.sig <- lapply(l.m.final, fun.extract.sig.model.terms)
+
+# extract model R2:
+
+l.R2 <- lapply(l.m.final, \(i) summary(i)$adj.r.squared)
+
+# extract variable importance:
+
+l.varImp <- lapply(l.step.model, \(i) varImp(i, scale = FALSE)$importance %>% arrange(desc(Overall)) %>% tibble::rownames_to_column(., "Predictor"))
+
+# make table of results:
+
+# for each response variable (row), make columns of model significant terms, AdjR2, and top three most important variables, and variable importance values:
+
+# look at model results:
+
+i<-1
+
+step.model <- l.m[[i]]
+df <- l.setup.MLR[[i]]
+
+step.model$results
+step.model$bestTune
+summary(step.model$finalModel)
+coef(step.model$finalModel, as.numeric(step.model$bestTune))
+lmImp <- varImp(step.model, scale = FALSE)$importance %>% arrange(desc(Overall))
+
+
+
+pred<-names(coef(step.model$finalModel, as.numeric(step.model$bestTune)))[-1]
+
+
+
+pred<-gsub("`", "", pred)
+
+# select down df:
+
+df.2<-df%>%select(term, pred)
+
+# make lm:
+
+m<-lm(term~., data=df.2)
+
+# m.list[[i]]<-m
+
+summary(m)
+
+# look at univarite plots:
+
+p<-df.2%>%pivot_longer(cols = 2:last_col(), names_to = 'Predictor', values_to = 'Value')%>%
+  rename(!!names(l.cor.MLR.full)[i]:=term)%>%
+  ggplot(., aes(x=Value, y=!!sym(names(l.cor.MLR.full)[i])))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  facet_wrap('Predictor', scales = 'free')
+
+# look at model residuals:
+
+# plot(m)
+
+
+
+
+#### ~ PLS ####
+
+# split l.setup into two for training and testing:
+
+training.samples <- l.setup[[1]]$term %>%
+  createDataPartition(p = 0.8, list = FALSE)
+
+l.train <- lapply(l.setup, \(i) i[training.samples, ])
+l.test <- lapply(l.setup, \(i) i[-training.samples, ])
+
+
+# Build the model on training set:
+
+l.model <- lapply(l.train, \(i) train(term~., data = i, 
+                                              method = "pls",
+                                              scale = TRUE,
+                                              trControl = trainControl("cv", number = 10),
+                                              tuneLength = 10)
+)
+
+i<-1
+
+# Plot model RMSE vs different values of components
+
+plot(l.model[[i]])
+
+# Print the best tuning parameter ncomp that minimize the cross-validation error, RMSE:
+
+l.model[[i]]$bestTune
+
+# Summarize the final model:
+
+summary(l.model[[i]]$finalModel)
+
+# Make predictions:
+
+l.predictions <- lapply(seq_along(l.model), \(i) l.model[[i]] %>% predict(l.test[[i]]))
+
+# Model performance metrics:
+
+data.frame(
+  RMSE = caret::RMSE(l.predictions[[i]], l.test[[i]]$term),
+  Rsquare = caret::R2(l.predictions[[i]], l.test[[i]]$term)
+)
+
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # create a list of each CQ parameter and format it for ggplotting:
 
 l.cor<-df.cor %>%
@@ -1538,7 +1843,7 @@ OLS<-l.cor[[13]]%>%arrange(desc(Spearman_Correlation))
 # note the predictor column isturned into an ordered factor based on thespearman correlation values
 # to makethe facet plots in order:
 
-x <- temp%>%
+x <- df.setup%>%
   select(Name, OLS$CQ_Parameter[1], OLS$term)%>%
   pivot_longer(cols = c(3:last_col()), names_to = 'Type', values_to = 'Value')%>%
   drop_na(Value)%>%
