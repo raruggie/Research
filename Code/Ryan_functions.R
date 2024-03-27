@@ -1303,10 +1303,10 @@ fun.compare.linear.model.selections <- function(df, nbest = 1){
 
 # trouble shoot function:
 
-for (i in seq_along(l.setup.MLR)){
-
-  fun.compare.linear.model.selections(l.setup.MLR[[i]])
-}
+# for (i in seq_along(l.setup.MLR)){
+# 
+#   fun.compare.linear.model.selections(l.setup.MLR[[i]])
+# }
 
 # function to compute best MLR model
 # note* uses function from above:

@@ -519,6 +519,10 @@ temp<-df_Seg%>%
 df_Seg<-left_join(df_Seg, temp%>%select(site, n_sample_rank), by = 'site')%>%
   arrange(n_sample_rank)
 
+df.Seg <- df_Seg
+
+save(df.Seg, file = 'Processed_Data/df.Seg.Rdata')
+
 # ready to plot:
 
 # ggplot(df_Seg, aes(x = log(Q_real), y = log(C)))+
