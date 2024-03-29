@@ -6,21 +6,32 @@ gc()
 # install.packages("tidyverse")
 # install.packages("ggpmisc")
 # install.packages("ggpubr")
-# install.packages("scales")
+
+
+library(tidyverse)
+
 
 # load data:
 
 load("C:/Users/ryrug/OneDrive - SUNY ESF/Research/Processed_Data/df.Seg.Rdata")
 load("C:/Users/ryrug/OneDrive - SUNY ESF/Research/Processed_Data/df.setup.Rdata")
 
+df.Seg <- df.Seg %>% select(site, Date, Q_real, C) %>% 
+  rename(Q = 3) %>% 
+  mutate(Date = as.Date(Date)) %>% 
+  mutate(Season = getSeason(Date)) %>% 
+  left_join(., df.RP %>% select(Name, sample_dt, Q_type), by = c('site'='Name', 'Date'='sample_dt'))
+
+save(df.Seg, file = "C:/Users/ryrug/OneDrive - SUNY ESF/Research/Processed_Data/df.Seg.Rdata")
+
+
+
 #### plot 1 - univariate plot ####
 
 # lets look at the univariate plot of the concentration-discharge 
 # relationship for one USGS site in df.Seg
 
-# first we set up a plotting df:
-
-library(tidyverse)
+# first we set up a plotting df by filtering df.Seg to just one site:
 
 df.plot <- df.Seg %>% filter(site == "01422747")
 
@@ -44,7 +55,7 @@ p1 <- p1 +
 
 p1
 
-# here, geom_smooth with the argument method = 'lm' lets us add an OLS trendline to the relationship.
+# here, geom_smooth with the argument method = 'lm' lets us add an OLS trendline
 
 # usually the C-Q relationship is displayed in log space:
 
@@ -64,17 +75,17 @@ p1
 
 # note the equation is calculated for the log-log relationship in log base 10 
 
-# one last item to add to this plot
+# lets add a two slope trend line to this plot
 
 # df.Seg contains a column called Seg_C which contains the fitted values of 
 # a breakpoint analysis, which determined the best two slope model for the
 # CQ relationship
 
-# the fitted values are in log space so we need to do e^(Seg_C)
+# these fitted values are in log space so we need to do exp of Seg_C
 
 # lets add the two-slope trend line to p1:
 
-p1 <- p1 + geom_line(aes(x = Q_real, y = exp(Seg_C)),color = 'tomato')
+p1 <- p1 + geom_line(aes(x = Q_real, y = exp(Seg_C)), color = 'tomato')
 
 p1
 
@@ -104,7 +115,7 @@ df.plot <- df.plot %>% pivot_longer(cols = -R_PLANTNLCD06)
 
 # R_PLANTNLCD06, which will be our x variable
 # value, which will be our y variable
-# name, which will seperate the facets
+# name, which will separate the facets
 
 # now we are ready to make our plot:
 
@@ -117,7 +128,7 @@ p2
 
 # note use of argument scales = 'free' in facet_wrap
 
-# what happens if you dont use that argument? 
+# lets look at what happens if you dont use that argument: 
 
 ggplot(df.plot, aes(x = R_PLANTNLCD06, y = value)) +
   geom_point() + 
@@ -133,13 +144,17 @@ p2 <- p2 + stat_poly_eq(use_label(c("eq", "R2")))
 p2
 
 # these facets are arranged by alphabetical order
-# lets arrange them by adjR2
+# lets arrange them by adjR2 so we can look at which response variables
+# have the best relationships with the predictor variable
+
+# the reason I am having you do all of these steps is to show you what it may
+# entail to come up with a solution to your ggplot question
 
 # 1) split df.plot into list of dfs for each response variable:
 
 l.split <- split(df.plot, f = df.plot$name)
 
-# 2) calcualte lm for each response variable:
+# 2) calculate lm for each response variable:
 
 l.split <- lapply(l.split, \(i) lm(value ~ R_PLANTNLCD06, data = i))
 

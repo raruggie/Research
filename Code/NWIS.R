@@ -1545,6 +1545,32 @@ ggplot(df.cor.top10, aes(x=term, y=Spearman_Correlation, color=term))+
   # theme(axis.title.y=element_blank())+
   facet_wrap(~CQ_Parameter, ncol = 4,scales="free")
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### Model Building ####
 
 # set up list for each response variable:
@@ -1555,7 +1581,44 @@ l.setup <- lapply(v.resp.cols, \(i) df.setup[,c(i, v.pred.cols)] %>% rename(term
 
 l.setup.AANY <- l.setup[grep("AANY|C", names(l.setup))] 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### ~ MLR ####
+
+
+
+
+
+
 
 #### ~| VIF proof of multicolineatiry ####
 
@@ -1567,9 +1630,23 @@ l.vif.full <- lapply(l.lm.full, car::vif)
 
 # doesnt run: 'Error: there are aliased coefficients in the model'
 
+
+
+
+
+
+
+
+
 #### ~| real v.s. log space models ####
 
 # wont work, zeros in data
+
+
+
+
+
+
 
 #### ~| Remove all but one highly Correlated ####
 
