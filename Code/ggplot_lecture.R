@@ -5,7 +5,7 @@ gc()
 
 # install.packages("tidyverse")
 # install.packages("ggpmisc")
-# install.packages("ggpubr")
+# install.packages("gridExtra")
 
 # load tidyverse (ggplot2 is in the tidyverse):
 
@@ -339,7 +339,7 @@ class(df.plot$Date)
 
 df.plot$Date <- as.character(df.plot$Date)
 
-ggplot(df.plot, aes(x=Date, y=C))+
+ggplot(df.plot, aes(x=Date, y=value))+
   geom_point()
 
 # the x-axis is messy
@@ -360,7 +360,7 @@ p3
 # we can use a second y-axis for the values of discharge
 
 # we will need to scale the values of discharge down to the range of values of the concentrations
-# and we will need to scale the axis of concnetration down to the values of discharges
+# and we will need to scale the axis of concentration up to the values of discharges
 
 # I googled 'scale values to new maximum r' and found: https://stats.stackexchange.com/questions/281162/scale-a-number-between-a-range
 
@@ -412,19 +412,15 @@ p3
 
 #### plot 4 - combining ggplots ####
 
-# the benefit of saving plot objects is that we can put them in 
-# a list to combine them:
+# we can combine the plots from this lecture using the grid.arrange
+# function from the gridExtra package
 
-# make list of plots:
+# we will use the layout matrix argument to put the timeseries plot
+# along the entire width of the combined plot space:
 
-plist <- list(p1,p2,p3) # not including p2 because facets take awhile to plot
+library(gridExtra)
 
-# we can combine the plots in this list using the ggarrange function
-# from the ggpube package:
-
-library(ggpubr)
-
-p4 <- ggarrange(plotlist = plist, ncol=3) #, common.legend = TRUE, legend="bottom") # arrange plots:
+p4 <- grid.arrange(p1, p2, p3, layout_matrix = matrix(c(1, 3, 2, 3), nrow = 2))
 
 p4
 
