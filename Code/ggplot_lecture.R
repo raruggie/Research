@@ -7,37 +7,186 @@ gc()
 # install.packages("ggpmisc")
 # install.packages("ggpubr")
 
+# load tidyverse (ggplot2 is in the tidyverse):
 
 library(tidyverse)
 
+#### ggplot introduction ####
 
 # load data:
 
-load("C:/Users/ryrug/OneDrive - SUNY ESF/Research/Processed_Data/df.Seg.Rdata")
-load("C:/Users/ryrug/OneDrive - SUNY ESF/Research/Processed_Data/df.setup.Rdata")
+# dataset 1) df.model:
 
-df.Seg <- df.Seg %>% select(site, Date, Q_real, C) %>% 
-  rename(Q = 3) %>% 
-  mutate(Date = as.Date(Date)) %>% 
-  mutate(Season = getSeason(Date)) %>% 
-  left_join(., df.RP %>% select(Name, sample_dt, Q_type), by = c('site'='Name', 'Date'='sample_dt'))
+load("C:/Users/ryrug/OneDrive - SUNY ESF/Research/Processed_Data/df.model.Rdata")
 
-save(df.Seg, file = "C:/Users/ryrug/OneDrive - SUNY ESF/Research/Processed_Data/df.Seg.Rdata")
+# datset 2) df.CQ:
 
+load("C:/Users/ryrug/OneDrive - SUNY ESF/Research/Processed_Data/df.CQ.Rdata")
 
+# dataset 1) 
+
+# simple ggplot:
+
+ggplot(data = df.model) +
+  geom_point(mapping = aes(x = CSA.percent,
+                           y = medC,
+                           color = Landuse,
+                           size = DA))
+
+# dataset 2) 
+
+# set up df.plot:
+
+df.plot <- df.CQ %>% filter(site == "01349950")
+
+# how do you make these plots:
+
+ggplot(df.plot) +
+  geom_point(aes(x = Q, 
+                 y = C),
+             color = 'blue')
+
+ggplot(df.plot) +
+  geom_point(aes(x = Q, 
+                 y = C,
+                 color = Q_type))
+
+# note on colors:
+
+ggplot(df.plot) +
+  geom_point(aes(x = Q, y = C, color = 'blue'))
+
+ggplot(df.plot) +
+  geom_point(aes(x = Q, y = C), color = 'blue')
+
+# same aes, different geom:
+
+ggplot(df.plot) +
+  geom_point(aes(x = Q, y = C))
+
+ggplot(df.plot) +
+  geom_smooth(aes(x = Q, y = C))
+
+# how would you make this plot:
+
+ggplot(df.plot) +
+  geom_point(aes(x = Q, y = C)) +
+  geom_smooth(aes(x = Q, y = C))
+
+# replace scatter plot with boxplot:
+
+ggplot(df.plot, aes(x = Season, y = C)) +
+  geom_point()
+
+ggplot(df.plot, aes(x = Season, y = C)) +
+  geom_boxplot()
+
+# density plot:
+
+ggplot(df.plot) +
+  geom_density(aes(x = Q, 
+                   fill = Q_type), 
+               alpha = 0.3)
+
+# predict what this will do:
+
+ggplot(data = df.plot) +
+  geom_point(mapping = aes(x = Q,
+                           y = C,
+                           color = Q_type)) +
+  geom_smooth(mapping = aes(x = Q,
+                            y = C,
+                            color = Q_type))
+
+# mapping inside ggplot or geom:
+
+# local:
+
+ggplot(data = df.plot) +
+  geom_point(mapping = aes(x = C,
+                           y = Q,
+                           color = Q_type))
+
+# global:
+
+ggplot(data = df.plot, 
+       mapping = aes(x = C, y = Q, 
+                     color = Q_type)) +
+  geom_point()
+
+# Any aesthetics in geom_* layer only apply to that layer:
+
+ggplot(df.plot, mapping = aes(x = Q, y = C)) +
+  geom_point(mapping = aes(color = Q_type)) +
+  geom_smooth(method = 'lm')
+
+# scales:
+
+ggplot(df.plot, aes(x = Q, y = C)) +
+  geom_point() +
+  geom_smooth(method = 'lm')+
+  scale_x_log10() +
+  scale_y_log10()
+
+# facet plot:
+
+ggplot(df.plot, aes(x = Q, y = C, color = Season)) +
+  geom_point() +
+  geom_smooth(method = 'lm')+
+  scale_x_log10() +
+  scale_y_log10() +
+  facet_wrap(vars(Q_type, Season), nrow = 2)
+
+# coords:
+
+ggplot(df.plot, aes(x = Q, y = C, color = Season)) +
+  geom_point() +
+  geom_smooth(method = 'lm')+
+  scale_x_log10() +
+  scale_y_log10() +
+  coord_polar()
+
+# labels:
+
+ggplot(df.plot, aes(x = Q, y = C, color = Season)) +
+  geom_point() +
+  geom_smooth(method = 'lm')+
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = 'Seasonal log-log CQ plot for 01349950',
+       y = 'Discharge (cfs)',
+       x = 'TP Concentration (mg/L)',
+       color = 'Season!')
+
+# theme:
+
+ggplot(df.plot, aes(x = Q, y = C, color = Season)) +
+  geom_point() +
+  geom_smooth(method = 'lm')+
+  scale_x_log10() +
+  scale_y_log10() +
+  theme_dark()
+
+ggplot(df.plot, aes(x = Q, y = C, color = Season)) +
+  geom_point() +
+  geom_smooth(method = 'lm')+
+  scale_x_log10() +
+  scale_y_log10() +
+  theme_minimal()
+
+#### ~ advanced ggplots ~ ####
 
 #### plot 1 - univariate plot ####
 
+# here we are working with the dataset df.CQ
 # lets look at the univariate plot of the concentration-discharge 
-# relationship for one USGS site in df.Seg
+# relationship for one site 
+# we can use the plotting df from the introduction since it was 
+# already filtered down to a single site
 
-# first we set up a plotting df by filtering df.Seg to just one site:
+# we use this df to make the plot and save the plot as a variable called p1:
 
-df.plot <- df.Seg %>% filter(site == "01422747")
-
-# then we use this df to make the plot:
-
-p1 <- ggplot(df.plot, aes(x = Q_real, y = C))+
+p1 <- ggplot(df.plot, aes(x = Q, y = C))+
   geom_point()
 
 p1
@@ -55,6 +204,9 @@ p1 <- p1 +
 
 p1
 
+# note this is another way to add/modify these labels. we could have also
+# used labs() as shown in the introduction
+
 # here, geom_smooth with the argument method = 'lm' lets us add an OLS trendline
 
 # usually the C-Q relationship is displayed in log space:
@@ -65,7 +217,9 @@ p1 <- p1 +
 
 p1
 
-# lets add the trendline equation and adj.R2 to the plot:
+# lets add the trendline equation and adj.R2 to the plot
+
+# we will use a function call stat_poly_eq() from the ggpmisc package:
 
 library(ggpmisc)
 
@@ -75,67 +229,43 @@ p1
 
 # note the equation is calculated for the log-log relationship in log base 10 
 
-# lets add a two slope trend line to this plot
-
-# df.Seg contains a column called Seg_C which contains the fitted values of 
-# a breakpoint analysis, which determined the best two slope model for the
-# CQ relationship
-
-# these fitted values are in log space so we need to do exp of Seg_C
-
-# lets add the two-slope trend line to p1:
-
-p1 <- p1 + geom_line(aes(x = Q_real, y = exp(Seg_C)), color = 'tomato')
-
-p1
-
 #### plot 2 - facet plots ####
 
+# here we are working with the dataset df.model
 # lets look at facet plots of the relationships between the response 
-# variables and the watershed percent agriculture (R_PLANTNLCD06)
+# variables and the watershed percent CSA
 
-# taking a look at the column names of our df:
+# the response variables are in columns 2:4 and 
+# our predictor variable CSA.percent is in column 9
 
-names(df.setup)
+# set up a plotting df that contains just these columns:
 
-# the response variables are in columns 2:18 and R_PLANTNLCD06 is in column 23
+df.plot <- df.model %>% select(c(2:5,9))
 
-# set up plotting df that contains just these columns:
-
-df.plot <- df.setup %>% select(c(2:18,23))
+# note we are writing ove df.plot. we will do this for all plots
+# in this section
 
 # ggplot likes data in long format anytime you want to make 
 # facets, colors, fills, shapes,etc. by a certain identifier
 
 # we can use pivot_longer to make df.plot long:
 
-df.plot <- df.plot %>% pivot_longer(cols = -R_PLANTNLCD06)
+df.plot <- df.plot %>% pivot_longer(cols = -CSA.percent)
 
 # what we have now are three columns:
 
-# R_PLANTNLCD06, which will be our x variable
+# CSA.percent, which will be our x variable
 # value, which will be our y variable
 # name, which will separate the facets
 
 # now we are ready to make our plot:
 
-p2 <- ggplot(df.plot, aes(x = R_PLANTNLCD06, y = value)) +
+p2 <- ggplot(df.plot, aes(x = CSA.percent, y = value)) +
   geom_point() + 
   geom_smooth(method = 'lm') + 
   facet_wrap(~name, scales = 'free')
 
 p2
-
-# note use of argument scales = 'free' in facet_wrap
-
-# lets look at what happens if you dont use that argument: 
-
-ggplot(df.plot, aes(x = R_PLANTNLCD06, y = value)) +
-  geom_point() + 
-  geom_smooth(method = 'lm') + 
-  facet_wrap(~name)
-
-# the variable with the highest values dictates the axis limits for all facets
 
 # lets add the trendline equation and adj.R2 to each facet:
 
@@ -156,7 +286,7 @@ l.split <- split(df.plot, f = df.plot$name)
 
 # 2) calculate lm for each response variable:
 
-l.split <- lapply(l.split, \(i) lm(value ~ R_PLANTNLCD06, data = i))
+l.split <- lapply(l.split, \(i) lm(value ~ CSA.percent, data = i))
 
 # 3) extract adjR2 from these models:
 
@@ -179,7 +309,7 @@ df.plot$name # looks good
 
 # now we can remake the plot:
 
-p2 <- ggplot(df.plot, aes(x = R_PLANTNLCD06, y = value)) +
+p2 <- ggplot(df.plot, aes(x = CSA.percent, y = value)) +
   geom_point() + 
   geom_smooth(method = 'lm') + 
   facet_wrap(~name, scales = 'free') +
@@ -189,35 +319,48 @@ p2
 
 # now the facets arranged by adjR2 value
 
-#### plot 3 - distributions of response variables ####
+#### plot 3 - timeseries plot ####
 
-# lets compare the distributions of the different AANY estimation methods
+# here we are using df.CQ 
+# lets look at the timeseries of flow and concentrations for a single site
+# we can use the site we used in the introduction
 
-# setting up a plotting df with just these columns:
+# setting up a plotting df:
 
-df.plot <- df.setup %>% select(contains('AANY')) %>%
-  pivot_longer(cols = everything())
+df.plot <- df.CQ %>% 
+  filter(site == "01349950") %>% 
+  pivot_longer(cols = c(Q,C))
 
-# violin plots visualize the distribution (i.e boxplot + histogram):
+# always check class of Date column before plotting:
 
-p3 <- ggplot(df.plot, aes(x=name, y=value))+
-  geom_violin()
+class(df.plot$Date) 
+
+# it is already "Date" which is good, but lets pretend it wasnt already:
+
+df.plot$Date <- as.character(df.plot$Date)
+
+ggplot(df.plot, aes(x=Date, y=C))+
+  geom_point()
+
+# the x-axis is messy
+
+# this is why Dates need to be class Date:
+
+df.plot$Date <- as.Date(df.plot$Date)
+
+# make plot:
+
+p3 <- ggplot(df.plot,aes(x=Date, y=value, color = name)) +
+  geom_point()
 
 p3
 
-# AANY.simple has a much larger range than the others...
-# it looks like it maybe due to outliers:
+# the dates look good, but, the y axis is dominated by the range of the discharges
 
-boxplot(df.setup$AANY.simple)$out
+# we can use a second y-axis for the values of discharge
 
-# I'm sure if we remove these observations, the violin plots will look better...
-# but justifying removing those is not easy, so lets work with them
-
-# we can use a second y-axis for the values of AANY.simple
-
-# we will need to scale AANY.simple down to the range of values of the other
-# three variables, and scale the range of the other three variables up to
-# the range of AANY.simple for the second y-axis
+# we will need to scale the values of discharge down to the range of values of the concentrations
+# and we will need to scale the axis of concnetration down to the values of discharges
 
 # I googled 'scale values to new maximum r' and found: https://stats.stackexchange.com/questions/281162/scale-a-number-between-a-range
 
@@ -225,149 +368,69 @@ boxplot(df.setup$AANY.simple)$out
 
 # 1) setting the values needed for the scaling approach:
 
-t.min <- min((df.plot %>% filter(name !="AANY.simple"))$value)
-t.max <- max((df.plot %>% filter(name !="AANY.simple"))$value)
-r.min <- min((df.plot %>% filter(name =="AANY.simple"))$value)
-r.max <- max((df.plot %>% filter(name =="AANY.simple"))$value)
+t.min <- min((df.plot <- df.CQ%>%filter(site == "01349950"))$C)
+t.max <- max((df.plot <- df.CQ%>%filter(site == "01349950"))$C)
+r.min <- min((df.plot <- df.CQ%>%filter(site == "01349950"))$Q)
+r.max <- max((df.plot <- df.CQ%>%filter(site == "01349950"))$Q)
 
-# 2) create function to scale down AANY.simple:
+# 2) create function to scale down Q:
 
-fun.scale.down <- function(AANY.simple){
-  AANY.scaled <- ((AANY.simple - r.min) / (r.max - r.min)) * (t.max - t.min) + t.min
-  return(AANY.scaled)
+fun.scale.down <- function(Q){
+  Q.scaled <- ((Q - r.min) / (r.max - r.min)) * (t.max - t.min) + t.min
+  return(Q.scaled)
 }
 
-# 3) create function to scale up all others (for secondary y-axis):
+# 3) create function to scale up C (for secondary y-axis):
 
-fun.scale.up <- function(AANY.method2){
-  AANY.scaled <- ((AANY.method2 - t.min) / (t.max - t.min)) * (r.max - r.min) + r.min
-  return(AANY.scaled)
+fun.scale.up <- function(C){
+  C.scaled <- ((C - t.min) / (t.max - t.min)) * (r.max - r.min) + r.min
+  return(C.scaled)
 }
 
-# 4) scale AANY.simple down to between t.min and t.max and re-set up plotting df:
+# 4) scale Q down to between t.min and t.max and re-set up plotting df:
 
-df.plot <- df.setup %>% 
-  mutate(across(contains("simple"), fun.scale.down)) %>% 
-  select(contains('AANY')) %>%
-  pivot_longer(cols = everything())
+df.plot <- df.CQ %>% 
+  filter(site == "01349950") %>% 
+  mutate(across(Q, fun.scale.down)) %>% 
+  pivot_longer(cols = c(Q,C))
 
-# now we are ready to remake the plot - the sec.axis argument in scale_y_continous 
-# is used with the fun.scale.up function to display labels that put AANY.simple back on its original scale:
+# now we are ready to remake the plot
+# the sec.axis argument in scale_y_continous is used with the 
+# fun.scale.up function to display labels that put Q 
+# back on its original scale:
 
-p3 <- ggplot(df.plot, aes(x=name, y=value))+
-  geom_violin()+
+p3 <- ggplot(df.plot, aes(x=Date, y=value, color = name))+
+  geom_point()+
   scale_y_continuous(
-    sec.axis = sec_axis(~ fun.scale.up(.), name = "value (for AANY.simple)"),
-    "value (for method 2)"
+    sec.axis = sec_axis(~ fun.scale.up(.), name = "Discharge (cfs)"),
+    "TP Concentration (mg/L)"
   )
 
 p3
 
 # now we have two y-axis
 
-# lets make sure the x-axis labels don't overlap:
+#### plot 4 - combining ggplots ####
 
-p3 <- p3 + scale_x_discrete(guide = guide_axis(n.dodge=3))
-
-p3
-
-#### plot 4 - biplot with color gradient ####
-
-# lets look at the magnitude of CQ slope as function of watershed 
-# percent developed and percent agriculture
-
-# setting up plotting df:
-
-df.plot <- df.setup %>% select(OLS.Slope.1s, R_DEVNLCD06, R_PLANTNLCD06) %>% 
-  pivot_longer(cols = -c(R_DEVNLCD06, R_PLANTNLCD06))
-
-# make plot:
-
-p4 <- ggplot(df.plot, aes(x = R_DEVNLCD06, y = R_PLANTNLCD06, color = value)) +
-  geom_point(size = 3) +
-  scale_color_gradient(low = "yellow", high = "red") +
-  xlab('Percent Developed') +
-  ylab('Percent Agriculture') +
-  ggtitle('CQ slope as a function of percent Ag and Developed Land')
-
-p4
-
-# what if the size argument was inside aes?
-
-ggplot(df.plot, aes(x = R_DEVNLCD06, y = R_PLANTNLCD06, color = value)) +
-  geom_point(size = 3) +
-  scale_color_gradient(low = "yellow", high = "red")
-
-# it gets added to the legend
-
-# lets change the legend title:
-
-p4$labels$colour <- 'CQ Slope' # dont ask me why its colour and not color...
-
-p4
-
-# we can also do:
-
-p4 <- p4 + labs(color='CQ Slope!')
-
-p4
-
-#### plot 5 - boxplots and barplots ####
-
-# lets look at boxplots of the different HSG watershed characteristics:
-
-# set up plotting df:
-
-df.plot <- df.setup %>% select(contains('HSG')) %>% 
-  pivot_longer(cols = everything())
-
-# make plot:
-
-p5 <- ggplot(df.plot, aes(x = name, y = value))+
-  geom_boxplot() +
-  xlab('HSG class') +
-  ylab('Watershed % in HSG')
-
-p5
-
-# lets rotate the axis labels:
-
-p5 <- p5 + theme(axis.text.x=element_text(angle=40,hjust=1))
-
-p5
-
-# lets look at a barplot of just the means of each HSG:
-
-# we can use the df.plot from the boxplots to set up the plotting df for the barplot:
-
-df.plot <- df.plot %>% group_by(name) %>% summarize(mean = mean(value))
-
-# make plot:
-
-p5 <- ggplot(df.plot, aes(x = name, y = mean))+
-  geom_bar(stat = "identity") +
-  xlab('HSG class') +
-  ylab('Avg. Watershed % in HSG')
-
-p5
-
-#### plot 6 - combining ggplots ####
+# the benefit of saving plot objects is that we can put them in 
+# a list to combine them:
 
 # make list of plots:
 
-plist <- list(p1,p3,p4,p5) # not including p2 because facets take awhile to plot
+plist <- list(p1,p2,p3) # not including p2 because facets take awhile to plot
 
-# make plot:
+# we can combine the plots in this list using the ggarrange function
+# from the ggpube package:
 
 library(ggpubr)
 
-p6<-ggpubr::ggarrange(plotlist = plist, ncol=2, nrow=2) #, common.legend = TRUE, legend="bottom") # arrange plots:
+p4 <- ggarrange(plotlist = plist, ncol=3) #, common.legend = TRUE, legend="bottom") # arrange plots:
 
-p6
+p4
 
 # lets add a title to this plot:
 
-p6<-annotate_figure(p6, top = text_grob("Mashup of plots from this lecture", color = "red", face = "bold", size = 14)) 
+p4 <- annotate_figure(p4, top = text_grob("Mashup of plots from this lecture", color = "red", face = "bold", size = 14)) 
 
-p6
+p4
 
