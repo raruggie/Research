@@ -1344,4 +1344,23 @@ fun.build.best.lm <- function(df, nbest = 1){
   
 }
 
+##Function to calculate outliers
+FindOutliers <- function(data) {
+  lowerq = quantile(data)[2]
+  upperq = quantile(data)[4]
+  iqr = upperq - lowerq #Or use IQR(data)
+  # we identify extreme outliers
+  extreme.threshold.upper = (iqr * 3) + upperq
+  extreme.threshold.lower = lowerq - (iqr * 3)
+  result <- which(data > extreme.threshold.upper | data < extreme.threshold.lower)
+}
 
+# function to plot one or multiple NWIS sites by site no:
+
+fun.map.DA <- function(v.site_no) {
+  
+  load('Processed_Data/NWIS_Watershed_Shapefiles.62.Rdata')
+  temp<-df.sf.NWIS.62%>%filter(Name %in% v.site_no)
+  mapview(temp)
+  
+}

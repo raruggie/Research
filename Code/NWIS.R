@@ -43,6 +43,7 @@ library(corrr)
 library(gridExtra)
 library(caret)
 set.seed(123)
+library(ggbiplot)
 library(tidyverse)
 
 sf_use_s2(TRUE) # for sf
@@ -1573,54 +1574,87 @@ ggplot(df.cor.top10, aes(x=term, y=Spearman_Correlation, color=term))+
 
 #### Model Building ####
 
-# set up list for each response variable:
+# I am going to test different models to try to predict the response variables using the watershed predictors
+
+# the models include:
+
+# 1) MLR with stepwise selection
+# 2) PLSR
+# 3) Random Forest
+
+# lets look at plots of the response variables:
+
+df.setup[,v.resp.cols] %>% pivot_longer(cols = everything()) %>% 
+  ggplot(., aes(x = name, y = log(value))) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 20, vjust = 0.5, hjust=1))
+
+# lets map sites that are outliers
+
+out.pos <- lapply(df.setup[,v.resp.cols], FindOutliers) %>% unlist %>% unique
+outlier.sites <- df.setup$Name[out.pos]
+fun.map.DA(outlier.sites)
+
+# now I have a veriable outlier.sites to try PCA with and without those sites
+
+# lets try some iterations of PCA:
+
+# PCA with all sites and all response variables:
+
+pc1 <- prcomp(df.setup[,v.pred.cols], center = TRUE, scale. = TRUE)
+
+as.data.frame(summary(pc1)$importance)$PC2[3]
+
+# PCA With outlier sites removed and all response variables:
+
+pc2 <- prcomp(subset(df.setup, !(Name %in% outlier.sites))[,v.pred.cols], center = TRUE, scale. = TRUE)
+
+as.data.frame(summary(pc2)$importance)$PC2[3]
+
+# PCA with all sites and top half of predictors with highest variability:
+
+preds.var <- df.setup[,v.pred.cols] %>% pivot_longer(cols = everything()) %>% 
+  group_by(name) %>% 
+  dplyr::summarize(var = var(value)) %>% arrange(desc(var)) %>% ungroup() %>% top_n(16)
+
+pc3 <- prcomp(df.setup[,v.pred.cols] %>% select(preds.var$name), center = TRUE, scale. = TRUE)
+
+as.data.frame(summary(pc3)$importance)$PC2[3]
+
+# PCA with outlier sites removed and top half of predictors with highest variability:
+
+pc4 <- prcomp(subset(df.setup, !(Name %in% outlier.sites))[,v.pred.cols] %>% select(preds.var$name), center = TRUE, scale. = TRUE)
+
+as.data.frame(summary(pc4)$importance)$PC2[3]
+
+# lets look at biplots of PCA:
+
+bp1 <- ggbiplot(pc1,
+              obs.scale = 1,
+              var.scale = 1,
+              # groups = training$Species,
+              ellipse = TRUE,
+              circle = TRUE,
+              ellipse.prob = 0.68) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal', legend.position = 'top')
+
+bp2 <- bp1 %+% pc2
+
+
+print(g)
+
+# lets run a test:
+
+# if we build MLR models with more and more predictors, does R2 go up?
+
+# the first step is to set up a list of dataframes for each response variable with the first column named 'term' (i.e. the response variable values) and the remaining columns containing the predictor variables:
 
 l.setup <- lapply(v.resp.cols, \(i) df.setup[,c(i, v.pred.cols)] %>% rename(term = 1)) %>% purrr::set_names(names(df.setup[v.resp.cols]))
 
-# set up list for just AANY, med/mean C, and CV C/Q response variables:
-
-l.setup.AANY <- l.setup[grep("AANY|C", names(l.setup))] 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #### ~ MLR ####
 
+# the first step for MLR is to identify highly correlated predictors:
 
-
-
-
-
-
-#### ~| VIF proof of multicolineatiry ####
+# the first way to do this is with VIF proof of multicolineatiry
 
 # run full model and calculate vif:
 
@@ -1630,30 +1664,13 @@ l.vif.full <- lapply(l.lm.full, car::vif)
 
 # doesnt run: 'Error: there are aliased coefficients in the model'
 
+# the second way to do this is to find high correlations
 
-
-
-
-
-
-
-
-#### ~| real v.s. log space models ####
-
-# wont work, zeros in data
-
-
-
-
-
-
-
-#### ~| Remove all but one highly Correlated ####
-
-# find correlation:
+# find the high correlated predictors:
 
 highCorr <- findCorrelation(corr.pred, .75, names = T) # find highly correlated columns:
 
+# for each of these, one will be included in the MLR selection process
 # loop through these variables and save kable table:
 
 leave <- 1
