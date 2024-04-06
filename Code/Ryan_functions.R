@@ -1364,3 +1364,107 @@ fun.map.DA <- function(v.site_no) {
   mapview(temp)
   
 }
+
+# function to normalize data between zero and 1:
+
+range01 <- function(x){(x-min(x))/(max(x)-min(x))}
+
+# function to make plot of pca biplot by observation:
+
+fun.PCA.biplot.individuals <- function(pc.obj){
+  
+  p <- fviz_pca_ind(pc.obj,
+               col.ind = "cos2", # Color by the quality of representation
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE     # Avoid text overlapping
+  )
+  
+  return(p)
+  
+}
+
+# function to perform test/train CV for MLR:
+# mxkuhn@gmail.com
+
+trC.repcv <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+trC.cv <- trainControl(method = "cv", number = 10)
+trC.none <- trainControl(method = "none")
+trC.LGOCV <- trainControl(method = "LGOCV", p = p)
+trC.boot <- trainControl(method = "boot")
+trC.repcv <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+trC.LOOCV <- trainControl(method = "LOOCV")
+
+# df <- l.resp.allpred[[1]]
+
+fun.LGOCV.MLR <- function(df, p = 0.8){
+  
+  set.seed(2) # 2 give r2 of >0.7 ?!?!
+  
+  # set up training samples:
+  
+  training.samples <- df[,1] %>% createDataPartition(p = p, list = FALSE)
+  
+  # partion data:
+  
+  train.data  <- df[training.samples, ]
+  test.data <- df[-training.samples, ]
+  
+  # build models:
+  
+  model <- train(term ~., data = train.data, method = "leapSeq", trControl = trC.LGOCV)
+  
+  # use model to predict test data:
+  
+  model.predictions <- predict(model, test.data)
+  
+  # get model performance by comparing test predictions and test observations:
+  
+  postResample(pred = model.predictions, obs = test.data$term)
+
+  # look at model terms:
+  
+  coef(model$finalModel, as.numeric(model$bestTune))
+  
+  # create df of results:
+  
+  
+  
+  # method 2: use trainControl:
+  
+  # Set up LGOCV cross-validation:
+  
+  train.control <- trainControl(method = "LGOCV", p = p)
+  
+  # build model:
+  
+  model <- train(term ~., 
+                      data = df,
+                      method = "leapForward",
+                      trControl = train.control
+  )
+  
+  model.predictions <- predict(model, df)
+  
+  # get model performanceby comparing test predictions and test observations:
+  
+  postResample(pred = model.predictions, obs = df$term)
+  
+  # look at model terms:
+  
+  coef(model$finalModel, as.numeric(model$bestTune))
+  
+  
+  
+  
+  
+  
+  
+  # 
+  
+  ?resamples
+  
+  
+  
+  
+}
+  
