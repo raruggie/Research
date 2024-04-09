@@ -1753,7 +1753,7 @@ l.resp.allpred <- lapply(v.resp.cols, \(i) df.PCA[,c(1,i,v.pred.cols)] %>% filte
 
 l.resp.top16pred <- lapply(v.resp.cols, \(i) df.PCA %>% select(names(df.PCA)[i], preds.var.01$name) %>% rename(term = 1)) %>% purrr::set_names(names(df.setup[v.resp.cols]))
 
-# I am going to test different models to try to predict the response variables using the watershed predictors
+## Compare models:
 
 # the models include:
 
@@ -1762,6 +1762,56 @@ l.resp.top16pred <- lapply(v.resp.cols, \(i) df.PCA %>% select(names(df.PCA)[i],
 # 3) Random Forest
 # 4) SVM
 # 5) GBM
+
+# use fun.compare.models to loop through different models and CV methods:
+
+df.compare.allpred <- lapply(seq_along(l.resp.allpred), \(i) fun.compare.models(df = l.resp.allpred[[i]], resp.name = names(l.resp.allpred)[i]))
+
+df.compare.allpred <- bind_rows(df.compare.allpred)
+
+df.compare.allpred <- df.compare.allpred %>% mutate(CV.method = rep(rep(names(l.trCon), each = 3), 17))
+
+save(df.compare.allpred, file = 'Processed_Data/df.compare.allpred.Rdata')
+
+temp <- df.compare.allpred %>% group_by(Resp.name) %>% summarize(meanRMSE = mean(RMSE)) %>% arrange(meanRMSE)
+
+df.compare.allpred$Resp.name <- factor(df.compare.allpred$Resp.name, levels=temp$Resp.name[order(temp$meanRMSE, decreasing = F)], ordered=TRUE)
+
+ggplot(df.compare.allpred, aes(x=CV.method, y = RMSE, group = Model_Type,color = Model_Type))+
+  geom_line()+
+  facet_wrap(~Resp.name, scales = 'free')+
+  theme(axis.text.x = element_text(angle = 25, vjust = 0.5, hjust=1))
+
+
+
+
+# %>% 
+#   group_by(Resp.name) %>%
+#   slice_min(order_by = RMSE, n = 1) %>% 
+#   mutate(Pred_list = 'allpred')
+
+df.compare.top16pred <- lapply(seq_along(l.resp.top16pred), \(i) fun.compare.models(df = l.resp.top16pred[[i]], resp.name = names(l.resp.top16pred)[i])) %>% 
+  bind_rows(.) %>% 
+  group_by(Resp.name) %>%
+  slice_min(order_by = RMSE, n = 1) %>% 
+  mutate(Pred_list = 'top16pred')
+
+df.compare <- bind_rows(df.compare.allpred, df.compare.top16pred) %>% 
+  group_by(Resp.name) %>% 
+  slice_min(order_by = RMSE, n = 1)
+
+# save(df.compare, file = 'Processed_Data/df.compare.MLR.pls.Rdata')
+save(df.compare, file = 'Processed_Data/df.compare.4.models.Rdata')
+
+ggplot(df.compare.allpred, aes(x=Resp.name, y = RMSE, color = Model_Type, linetype = CV.method))+
+  geom_line()
+
+#
+
+
+# I am going to test different models to try to predict the response variables using the watershed predictors
+
+
 
 # all of these models will be built using various cross validation approaches:
 # the 5 models will be compared to each other for the different CV approaches:

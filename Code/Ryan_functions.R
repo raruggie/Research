@@ -1383,88 +1383,53 @@ fun.PCA.biplot.individuals <- function(pc.obj){
   
 }
 
-# function to perform test/train CV for MLR:
+# function to compare models using different seeds:
 # mxkuhn@gmail.com
 
-trC.repcv <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+p <- 0.8
+seed = 3
+mods = c('leapSeq', 'pls', 'rf')
+
 trC.cv <- trainControl(method = "cv", number = 10)
-trC.none <- trainControl(method = "none")
 trC.LGOCV <- trainControl(method = "LGOCV", p = p)
 trC.boot <- trainControl(method = "boot")
-trC.repcv <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
 trC.LOOCV <- trainControl(method = "LOOCV")
 
-# df <- l.resp.allpred[[1]]
+l.trCon <- list(trC.boot, trC.cv, trC.LGOCV, trC.LOOCV)
+names(l.trCon) <- c("trC.boot", "trC.cv", "trC.LGOCV", "trC.LOOCV")
 
-fun.LGOCV.MLR <- function(df, p = 0.8){
-  
-  set.seed(2) # 2 give r2 of >0.7 ?!?!
-  
-  # set up training samples:
-  
-  training.samples <- df[,1] %>% createDataPartition(p = p, list = FALSE)
-  
-  # partion data:
-  
-  train.data  <- df[training.samples, ]
-  test.data <- df[-training.samples, ]
-  
-  # build models:
-  
-  model <- train(term ~., data = train.data, method = "leapSeq", trControl = trC.LGOCV)
-  
-  # use model to predict test data:
-  
-  model.predictions <- predict(model, test.data)
-  
-  # get model performance by comparing test predictions and test observations:
-  
-  postResample(pred = model.predictions, obs = test.data$term)
+i <- 1
 
-  # look at model terms:
+# df <- l.resp.allpred[[i]]
+# 
+# resp.name <- names(l.resp.allpred)[i]
+
+fun.compare.models <- function(df, p = 0.8, seed = 2, models = mods, resp.name){
   
-  coef(model$finalModel, as.numeric(model$bestTune))
+  # for each CV method, build models for each model...
   
-  # create df of results:
+  l.models <- list()
+  j <- 1
+  i <- 1
+  for (i in seq_along(l.trCon)){
+    l.j.model <- list()
+    for(j in seq_along(models)){
+      model.j <- train(term ~., data = df, method = models[j], trControl = l.trCon[[i]])
+      l.j.model[[j]] <- model.j
+    }
+    df.j.compare <- lapply(seq_along(l.j.model), \(m) l.j.model[[m]]$results[which.min(l.j.model[[m]]$results$RMSE),]) %>% 
+      purrr::set_names(models) %>% 
+      bind_rows(., .id = 'Model_Type') %>% 
+      select(c(1:3), nvmax, ncomp, mtry) %>% 
+      mutate(Best_tune = coalesce(nvmax, ncomp, mtry), .keep = 'unused') %>% 
+      # mutate(Best_tune = coalesce(nvmax, ncomp, mtry, C), .keep = 'unused') %>% 
+      mutate(Resp.name = resp.name) %>% 
+      mutate(CV.method = names(l.trCon)[i])
+    l.models[[i]] <- df.j.compare
+  }
   
-  
-  
-  # method 2: use trainControl:
-  
-  # Set up LGOCV cross-validation:
-  
-  train.control <- trainControl(method = "LGOCV", p = p)
-  
-  # build model:
-  
-  model <- train(term ~., 
-                      data = df,
-                      method = "leapForward",
-                      trControl = train.control
-  )
-  
-  model.predictions <- predict(model, df)
-  
-  # get model performanceby comparing test predictions and test observations:
-  
-  postResample(pred = model.predictions, obs = df$term)
-  
-  # look at model terms:
-  
-  coef(model$finalModel, as.numeric(model$bestTune))
-  
-  
-  
-  
-  
-  
-  
-  # 
-  
-  ?resamples
-  
-  
-  
-  
+  df.compare <- bind_rows(l.models)
+
+  return(df.compare)
 }
   
