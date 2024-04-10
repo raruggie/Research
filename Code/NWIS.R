@@ -1574,42 +1574,42 @@ ggplot(df.cor.top10, aes(x=term, y=Spearman_Correlation, color=term))+
 
 #### Model Building ####
 
-# lets look at boxplots of the response variables:
+#### ~ PCA 1 ####
+
+# boxplots of the response variables:
 
 df.setup[,v.resp.cols] %>% pivot_longer(cols = everything()) %>% 
   ggplot(., aes(x = name, y = value)) +
   geom_boxplot() +
   theme(axis.text.x = element_text(angle = 20, vjust = 0.5, hjust=1))
 
-# lets ID and then map sites that are outliers
+# ID and then map sites that are outliers:
 
 out.pos <- lapply(df.setup[,v.resp.cols], FindOutliers) %>% unlist %>% unique
 outlier.sites <- df.setup$Name[out.pos]
 
 fun.map.DA(outlier.sites)
 
-# now I have a variable outlier.sites to try PCA with and without those sites
-
-# before doing PCA iterations, I want to look at groups of sites for the response variables against drainage area
+# I want to look at non and outlier observations for the response variables against CSA_perc and drainage area
 
 # lets start with a look at CSA_perc:
 
-df.setup[,c(1,v.resp.cols, 43)] %>% 
-  mutate(Outlier = ifelse(Name%in%outlier.sites, 'Outlier', 'Not')) %>% 
-  # left_join(., df.DA, by = c('Name'='site_no')) %>% 
-  select(-Name) %>% 
-  pivot_longer(cols = -c(CSA_perc, Outlier)) %>% 
+df.setup[,c(1,v.resp.cols, 43)] %>%
+  mutate(Outlier = ifelse(Name%in%outlier.sites, 'Outlier', 'Not')) %>%
+  # left_join(., df.DA, by = c('Name'='site_no')) %>%
+  select(-Name) %>%
+  pivot_longer(cols = -c(CSA_perc, Outlier)) %>%
   ggplot(., aes(x = CSA_perc, y = value, color = Outlier)) +
   geom_point() +
   facet_wrap(~name, scales = 'free')
 
 # lets look at drainage area next:
 
-df.setup[,c(1,v.resp.cols)] %>% 
-  mutate(Outlier = ifelse(Name%in%outlier.sites, 'Outlier', 'Not')) %>% 
+df.setup[,c(1,v.resp.cols)] %>%
+  mutate(Outlier = ifelse(Name%in%outlier.sites, 'Outlier', 'Not')) %>%
   left_join(., df.DA, by = c('Name'='site_no')) %>%
-  select(-Name) %>% 
-  pivot_longer(cols = -c(drain_area_va, Outlier)) %>% 
+  select(-Name) %>%
+  pivot_longer(cols = -c(drain_area_va, Outlier)) %>%
   ggplot(., aes(x = drain_area_va, y = value, color = Outlier)) +
   geom_point() +
   scale_x_log10() +
@@ -1617,16 +1617,18 @@ df.setup[,c(1,v.resp.cols)] %>%
 
 # I am noticing when taking the log of draiange area the plots look really much more monotonic and linear... maybe we should use log of drainage area as a predictor and also maybe divide through by log drainage area for the AANY estimations?
 
-# lets set up a df for PCA, set the row names as the site names, and determine the top predictors based on variance:
+# now I set up a df for PCA. I set the row names as the site names:
 
 df.PCA <- df.setup
 rownames(df.PCA) <- df.PCA[,1]
+
+# I determine the top predictors based on variance:
 
 preds.var <- df.PCA[,v.pred.cols] %>% pivot_longer(cols = everything()) %>% 
   group_by(name) %>% 
   dplyr::summarize(var = var(value)) %>% arrange(desc(var)) %>% ungroup() %>% top_n(16)
 
-# lets also do variances on standarized 0-1 variables:
+# I also do variances based on standarized 0-1 variables:
 
 preds.var.01 <- df.PCA[,v.pred.cols] %>%
   lapply(., range01) %>%
@@ -1635,27 +1637,27 @@ preds.var.01 <- df.PCA[,v.pred.cols] %>%
   group_by(name) %>%
   dplyr::summarize(var = var(value)) %>% arrange(desc(var)) %>% ungroup() %>% top_n(16)
 
-# lets look at the differences between regular and normalized top variance:
+# lets look at the differences between the predictor sets for regular and standardized (0-1) top variance:
 
 (x <- preds.var$name)
 (y <- preds.var.01$name)
 
 setdiff(x,y) # "mean.daily.Q" "Elev_Avg"     "Elev_Median"  "Sum.WWTP.Q"   "HSG_C" 
 
-# what we find is that when standarizing the variables, these 5 predictors do not get included in the top half of the variables
-# all but HSG_C are not percentages, which I hypothesize will leverage the PCA because we have such a difference in site sizes
+setdiff(names(df.setup[,v.pred.cols]),y)
 
-# one other thing to try is which were predictors replaced these:
+# I find that when standardizing the variables these 5 predictors do not get included in the top half 
+# with the excpetion of HSG_C, all of these are not percentages, and I hypothesize that these will leverage the PCA because we have such a difference in site sizes, elevations, etc.
+
+# one other thing to try is which predictors replaced these:
 
 setdiff(y,x) # "R_CROPSNLCD06" "Corn" "R_RIP100_PLANT" "RIP.CSA.100" "BFI"  
 
-# interesting, I like that these get included, but I really dont think it matters at the end of the day...
-# because I am including other predictors tah tcapture similar information
-# but I am interested in comparing the contribution/importance of these slighlty different predictors, so maybe I do care...
+# I like that these get included
 
-# now I feel ready for PCA
+# now Im ready for PCA
 
-# there are lots of iterations to be had here
+# there are lots of iterations to be had here:
 
 # 1) all sites with all predictors
 # 2) all sites with top half of predictors based on real variance
@@ -1671,46 +1673,66 @@ pc4 <- prcomp(df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>%
 pc5 <- prcomp(df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(preds.var$name), center = TRUE, scale. = TRUE)
 pc6 <- prcomp(df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(preds.var.01$name), center = TRUE, scale. = TRUE)
 
-# lets look at biplots IDed by observation:
+# make individuals biplots:
 
 l.pca <- list(pc1,pc2,pc3,pc4,pc5,pc6)
 
 l.pca.plot.biplot.obs <- lapply(l.pca, fun.PCA.biplot.individuals)
 
-x <- arrangeGrob(grobs = l.pca.plot.biplot.obs, ncol = 3)
+# look at individuals biplots for each PCA done above,
+# as well as the cummulative proportion of explained variance at the second PC
+# as well as the PC at which 95% of the variability is explained:
 
-l.pca.plot.biplot.obs[[1]] 
+l.pca.plot.biplot.obs[[1]]
 as.data.frame(summary(pc1)$importance)$PC2[3]
+min(which(summary(pc1)$importance[3,]>.95))
 
-l.pca.plot.biplot.obs[[2]]
+# l.pca.plot.biplot.obs[[2]]
 as.data.frame(summary(pc2)$importance)$PC2[3]
+min(which(summary(pc2)$importance[3,]>.95))
 
-l.pca.plot.biplot.obs[[3]]
+# l.pca.plot.biplot.obs[[3]]
 as.data.frame(summary(pc3)$importance)$PC2[3]
+min(which(summary(pc3)$importance[3,]>.95))
 
 l.pca.plot.biplot.obs[[4]]
 as.data.frame(summary(pc4)$importance)$PC2[3]
+min(which(summary(pc4)$importance[3,]>.95))
 
-l.pca.plot.biplot.obs[[5]]
+# l.pca.plot.biplot.obs[[5]]
 as.data.frame(summary(pc5)$importance)$PC2[3]
+min(which(summary(pc5)$importance[3,]>.95))
 
-l.pca.plot.biplot.obs[[6]]
+# l.pca.plot.biplot.obs[[6]]
 as.data.frame(summary(pc6)$importance)$PC2[3]
+min(which(summary(pc6)$importance[3,]>.95))
 
 # what I am seeing is that when inclduing the variables that are related to 
 # the watershed size, I can't pick out the larger sites, which makes sense
 
-# so lets try PCA with adding the large sites to the outliers list, and also use the 0- predictor set:
+# the lowest PC with >95% cumulative variability across these is 6. 
+# The difference for this seems to lie in using all predictors v.s. a subset of predictors
 
-outlier.sites <- c(outlier.sites, '04260500', '04231600', '01357500', '04249000')
+# looking at the biplot for pc6, lets look at the outlier sites based on PC2:
+
+temp <- c('04260500', '04231600', '01357500', '04249000')
+
+fun.map.DA(temp) # these are the largest watersheds in the dataset!
+
+# lets add these to the outlier list:
+
+outlier.sites <- c(outlier.sites, temp)
+
+# now do PCA with the updated outlier set, and using the standarized (0-1) predictor set:
 
 pc7 <- prcomp(df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(preds.var.01$name), center = TRUE, scale. = TRUE)
 
 fun.PCA.biplot.individuals(pc7)
 
 as.data.frame(summary(pc7)$importance)$PC2[3] # we improve slightly on pc6
+min(which(summary(pc7)$importance[3,]>.95)) # same as pc6
 
-# there is defiently a section of sites that are explained by Dim2 more?
+# there is a section of sites that are explained more by Dim2.
 
 # lets look at these sites:
 
@@ -1726,9 +1748,10 @@ pc8 <- prcomp(df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>%
 
 fun.PCA.biplot.individuals(pc8)
 
-as.data.frame(summary(pc8)$importance)$PC2[3] # we improve slightly on pc6
+as.data.frame(summary(pc8)$importance)$PC2[3] # we improve slightly on pc7
+min(which(summary(pc8)$importance[3,]>.95)) # improve on pc7
 
-# now we have an insane 72.5% of the variability explained in Dim1?!?!
+# now we have over 70% of the variabilit explained in the first PC
 
 # lets look at the biplot of predictor variables:
 
@@ -1743,15 +1766,165 @@ fviz_pca_var(pc8,
 
 # lets look at the actual ranks of importance:
 
-x <- as.data.frame(pc8$rotation) %>% arrange(abs(PC1), desc = T)
+df.importance <- as.data.frame(pc8$rotation) %>% arrange(PC1, desc = F)
 
-# now I think I am ready to run some models to predict the response variables
+# this is really interesting, HSGD has the lowest positive contribution to PC1
 
-# lets set up two lists of dataframes for each response variable with the first column named 'term' (i.e. the response variable values) and the remaining columns containing certain sets of the predictor variables:
+# However, the weights in PC1 were not adjusted for the variability in the response variable(s)
+# therefore we need to use PLSR
+
+#### ~ PCA 2 ####
+
+# filter sites betwenn 10 and 1000 sqmiles:
+
+df.middle.sites <- df.DA %>% 
+  filter(site_no %in% df.setup$Name) %>% 
+  filter(drain_area_va>10 & drain_area_va<1000)
+
+# 46 sites
+
+fun.map.DA(df.middle.sites$site_no)
+
+sort(df.middle.sites$drain_area_va)
+
+# run PCA:
+
+pc1 <- prcomp(df.PCA %>% filter(Name %in% df.middle.sites$site_no) %>% select(v.pred.cols), center = TRUE, scale. = TRUE)
+
+fun.PCA.biplot.individuals(pc2)
+
+fviz_pca_var(pc1,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+)
+
+# lets remove the three sites less than -2 in PC2:
+
+outlier.sites <- rownames(as.data.frame(pc1$x) %>% filter(PC2 < -2))
+
+fun.map.DA(outlier.sites)
+
+pc2 <- prcomp(df.PCA %>% filter(Name %in% df.middle.sites$site_no) %>% filter(!Name %in% outlier.sites) %>% select(v.pred.cols), center = TRUE, scale. = TRUE)
+
+fun.PCA.biplot.individuals(pc2)
+
+# lets remove sites >2:
+
+temp <- rownames(as.data.frame(pc2$x) %>% filter(PC2>2))
+
+fun.map.DA(temp)
+
+outlier.sites <- c(outlier.sites, temp)
+
+pc3 <- prcomp(df.PCA %>% filter(Name %in% df.middle.sites$site_no) %>% filter(!Name %in% outlier.sites) %>% select(v.pred.cols), center = TRUE, scale. = TRUE)
+
+fun.PCA.biplot.individuals(pc3)
+
+# lets run PLSR for three response variables:
+
+# OLS slope
+# AANY.hydrosep
+# medC
+
+resp.vars <- c("OLS.Slope.1s", "OLS.AANY.2s.hydrosep.method2", "medC")
+
+# set up dataframes for these three:
+
+l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% filter(Name %in% df.middle.sites$site_no) %>% filter(!Name %in% outlier.sites) %>% select(i, v.pred.cols) %>% rename(term = 1)) %>% purrr::set_names(resp.vars)
+
+# run plsr for different CVtecniques and seeds:
+
+l.plsr <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], name = names(l.resp.allpred)[list.e]))
+
+save(l.plsr, file = 'Processed_Data/l.plsr.Rdata')
+
+# extract bestTune:
+
+df.plsr <- bind_rows(l.plsr)
+
+ggplot(df.plsr, aes(x = seed, y = ncomp, color = CV.method)) +
+  geom_line() +
+  facet_wrap(~resp.name)
+
+
+
+
+
+
+
+# set up df for just the predictors and observations that went into pc8:
+
+df.PCR <- df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(preds.var.01$name)
+
+# run PCA and determine the optimal number of compoents:
+
+trans <- preProcess(df.PCR,method=c("center", "scale", "pca"))
+
+trans # 5 components
+
+# set up df of top 5 PC for predicting for medC:
+
+df.medC <- as.data.frame(pc8$x)[,1:5] %>% mutate(Name = rownames(df.PCR), .before = 1)
+
+rownames(df.medC) <- NULL
+
+df.medC <- left_join(df.setup[,c('Name', 'OLS.AANY.2s.hydrosep.method2')], df.medC, by = 'Name') %>% drop_na(PC1) %>%  select(-Name)
+
+# perform linear regression with first 5 components from pc8:
+
+m.medC <- lm(OLS.AANY.2s.hydrosep.method2 ~ ., data = df.medC)
+
+summary(m.medC)
+
+# only the first compoenent is signficant for medC
+# for AANY.hydrosep, all are at least significant to 10%
+
+# lets try a different workflow for PCA~MLR:
+
+df <- df.setup %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(medC, preds.var.01$name)
+
+df <- df.setup %>% filter(!Name %in% outlier.sites) %>% select(OLS.AANY.2s.hydrosep.method2, v.pred.cols)
+
+# library(pls)
+
+pcr_fit = plsr(OLS.AANY.2s.hydrosep.method2 ~ ., data = df, scale = TRUE, validation = "CV")
+validationplot(pcr_fit, val.type = c("MSEP"), xlim = c(0,5))
+summary(pcr_fit)
+
+
+
+validationplot(pcr_fit, val.type = c("RMSEP"))
+
+
+pcr_fit$model
+
+# lets set up three lists of dataframes:
+# for each response variable with the first column named 'term' (i.e. the response variable values) and the remaining columns containing certain sets of the predictor variables:
+# 1) all predictors
+# 2) top 16 based on variability of the standarized 0-1 predictors
+# 3) principla compoents from the PCA with the highest % explained in PC1 (this is pc8 at the moment)
 
 l.resp.allpred <- lapply(v.resp.cols, \(i) df.PCA[,c(1,i,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% rename(term = 1)) %>% purrr::set_names(names(df.setup[v.resp.cols]))
 
 l.resp.top16pred <- lapply(v.resp.cols, \(i) df.PCA %>% select(names(df.PCA)[i], preds.var.01$name) %>% rename(term = 1)) %>% purrr::set_names(names(df.setup[v.resp.cols]))
+
+l.resp.pc8 <- lapply(v.resp.cols, \(i) df.PCA %>% filter(!Name %in% outlier.sites) %>% select(i) %>% cbind(., as.data.frame(pc8$x)) %>% rename(term = 1)) %>% purrr::set_names(names(df.setup[v.resp.cols]))
+
+# now I think I am ready to run some models to predict the response variables
+# using these different sets of predictor variables
+
+x <- train(term ~ ., data = l.resp.allpred[[16]], method = 'pcr', scale = TRUE, trControl = trainControl(method = 'cv', number = 10), tuneLength = 10 )
+y <- train(term ~ ., data = l.resp.top16pred[[16]], method = 'pcr', scale = TRUE, trControl = trainControl(method = 'cv', number = 10), tuneLength = 10 )
+z <- train(term ~ ., data = l.resp.pc8[[16]], method = 'pcr', scale = TRUE, trControl = trainControl(method = 'cv', number = 10), tuneLength = 10 )
+
+summary(x)
+summary(y)
+summary(z)
+
+x
+y
+z
 
 ## Compare models:
 
@@ -1769,28 +1942,37 @@ df.compare.allpred <- lapply(seq_along(l.resp.allpred), \(i) fun.compare.models(
 
 df.compare.allpred <- bind_rows(df.compare.allpred)
 
-df.compare.allpred <- df.compare.allpred %>% mutate(CV.method = rep(rep(names(l.trCon), each = 3), 17))
+# need to add in CV.method manually because I screwed up in the function:
+
+df.compare.allpred <- df.compare.allpred %>% mutate(CV.method = rep(rep(names(l.trCon), each = 3), 17)) %>% mutate(Pred_list = 'allpred')
 
 save(df.compare.allpred, file = 'Processed_Data/df.compare.allpred.Rdata')
 
-temp <- df.compare.allpred %>% group_by(Resp.name) %>% summarize(meanRMSE = mean(RMSE)) %>% arrange(meanRMSE)
+# order resp.name by minimum RMSE for facet plot:
 
-df.compare.allpred$Resp.name <- factor(df.compare.allpred$Resp.name, levels=temp$Resp.name[order(temp$meanRMSE, decreasing = F)], ordered=TRUE)
+temp <- df.compare.allpred %>% group_by(Resp.name) %>% summarize(minRMSE = min(RMSE))
+
+df.compare.allpred$Resp.name <- factor(df.compare.allpred$Resp.name, levels=temp$Resp.name[order(temp$minRMSE, decreasing = F)], ordered=TRUE)
+
+# # make facet plot:
 
 ggplot(df.compare.allpred, aes(x=CV.method, y = RMSE, group = Model_Type,color = Model_Type))+
   geom_line()+
   facet_wrap(~Resp.name, scales = 'free')+
   theme(axis.text.x = element_text(angle = 25, vjust = 0.5, hjust=1))
 
+# for each response variable, plot the minimum RMSE for MLR and PLS:
+
+df.compare.allpred %>% filter(Model_Type != 'rf') %>% group_by(Resp.name, Model_Type) %>% summarize(RMSE = min(RMSE)) %>% 
+ggplot(., aes(x=Resp.name, y = RMSE, group = Model_Type, color = Model_Type))+
+  geom_line()+
+  theme(axis.text.x = element_text(angle = 25, vjust = 0.5, hjust=1))
+
+# now compare models for top16 pred:
+
+df.compare.top16pred <- lapply(seq_along(l.resp.top16pred), \(i) fun.compare.models(df = l.resp.top16pred[[i]], resp.name = names(l.resp.top16pred)[i]))
 
 
-
-# %>% 
-#   group_by(Resp.name) %>%
-#   slice_min(order_by = RMSE, n = 1) %>% 
-#   mutate(Pred_list = 'allpred')
-
-df.compare.top16pred <- lapply(seq_along(l.resp.top16pred), \(i) fun.compare.models(df = l.resp.top16pred[[i]], resp.name = names(l.resp.top16pred)[i])) %>% 
   bind_rows(.) %>% 
   group_by(Resp.name) %>%
   slice_min(order_by = RMSE, n = 1) %>% 

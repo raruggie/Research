@@ -1388,48 +1388,51 @@ fun.PCA.biplot.individuals <- function(pc.obj){
 
 p <- 0.8
 seed = 3
-mods = c('leapSeq', 'pls', 'rf')
+mods = c('leapSeq', 'pcr', 'pls', 'rf')
 
 trC.cv <- trainControl(method = "cv", number = 10)
+trC.repeatedcv <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
 trC.LGOCV <- trainControl(method = "LGOCV", p = p)
 trC.boot <- trainControl(method = "boot")
 trC.LOOCV <- trainControl(method = "LOOCV")
 
-l.trCon <- list(trC.boot, trC.cv, trC.LGOCV, trC.LOOCV)
-names(l.trCon) <- c("trC.boot", "trC.cv", "trC.LGOCV", "trC.LOOCV")
+l.trCon <- list(trC.boot, trC.cv, trC.repeatedcv, trC.LGOCV, trC.LOOCV)
+names(l.trCon) <- c("trC.boot", "trC.cv", "trC.repeatedcv", "trC.LGOCV", "trC.LOOCV")
 
 i <- 1
 
 # df <- l.resp.allpred[[i]]
 # 
-# resp.name <- names(l.resp.allpred)[i]
+# name <- names(l.resp.allpred)[i]
 
-fun.compare.models <- function(df, p = 0.8, seed = 2, models = mods, resp.name){
+seeds <- 1
+
+i <- 1
+j <- 1
+
+fun.compare.plsr.models <- function(df, seeds = 1:50, name){
   
-  # for each CV method, build models for each model...
-  
-  l.models <- list()
-  j <- 1
-  i <- 1
-  for (i in seq_along(l.trCon)){
-    l.j.model <- list()
-    for(j in seq_along(models)){
-      model.j <- train(term ~., data = df, method = models[j], trControl = l.trCon[[i]])
-      l.j.model[[j]] <- model.j
+  df.i <- data.frame(seed = NA, CV.method = NA, ncomp = NA)
+  for (i in seq_along(seeds)){
+    set.seed(i)
+    v.CV.method <- NA
+    v.ncomp <- NA
+    for(j in seq_along(l.trCon)){
+      model.j <- train(term ~., data = df, 
+                       method = 'pls', 
+                       scale = TRUE, 
+                       trControl = l.trCon[[j]], 
+                       tuneGrid = data.frame(ncomp = c(1:30)))
+      v.CV.method[j] <- names(l.trCon)[j]
+      v.ncomp[j] <- model.j$bestTune[1,1]
     }
-    df.j.compare <- lapply(seq_along(l.j.model), \(m) l.j.model[[m]]$results[which.min(l.j.model[[m]]$results$RMSE),]) %>% 
-      purrr::set_names(models) %>% 
-      bind_rows(., .id = 'Model_Type') %>% 
-      select(c(1:3), nvmax, ncomp, mtry) %>% 
-      mutate(Best_tune = coalesce(nvmax, ncomp, mtry), .keep = 'unused') %>% 
-      # mutate(Best_tune = coalesce(nvmax, ncomp, mtry, C), .keep = 'unused') %>% 
-      mutate(Resp.name = resp.name) %>% 
-      mutate(CV.method = names(l.trCon)[i])
-    l.models[[i]] <- df.j.compare
+    df.j <- data.frame(seed = i, CV.method = v.CV.method, ncomp = v.ncomp)
+    df.i <- rbind(df.i, df.j)
   }
   
-  df.compare <- bind_rows(l.models)
+  df.i <- df.i[-1,]
+  df.i$resp.name <- name
 
-  return(df.compare)
+  return(df.i)
 }
   
