@@ -1835,17 +1835,40 @@ l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% filter(Name %in% df.middle.s
 
 # run plsr for different CVtecniques and seeds:
 
-l.plsr <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], name = names(l.resp.allpred)[list.e]))
+l.plsr.10 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], seeds = 1:10, name = names(l.resp.allpred)[list.e]))
+l.plsr.20 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], seeds = 1:20, name = names(l.resp.allpred)[list.e]))
+l.plsr.50 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], seeds = 1:50, name = names(l.resp.allpred)[list.e]))
 
-save(l.plsr, file = 'Processed_Data/l.plsr.Rdata')
+save(l.plsr.10, file = 'Processed_Data/l.plsr.10.Rdata')
+save(l.plsr.20, file = 'Processed_Data/l.plsr.20.Rdata')
+save(l.plsr.50, file = 'Processed_Data/l.plsr.50.Rdata')
+
+l.plsr <- list(l.plsr.10, l.plsr.20, l.plsr.50) %>% purrr::set_names('10','20','50')
 
 # extract bestTune:
 
-df.plsr <- bind_rows(l.plsr)
+l.extract <-lapply(l.plsr, bind_rows)
 
-ggplot(df.plsr, aes(x = seed, y = ncomp, color = CV.method)) +
+
+p1 <- ggplot(l.extract[[1]], aes(x = seed, y = ncomp, color = CV.method)) +
   geom_line() +
   facet_wrap(~resp.name)
+
+p2 <- p1 %+% l.extract[[2]]
+
+p3 <- p1 %+% l.extract[[3]]
+
+grid.arrange(p1,p2,p3, nrow = 3)
+
+
+#
+
+
+
+
+
+
+
 
 
 
@@ -1855,7 +1878,7 @@ ggplot(df.plsr, aes(x = seed, y = ncomp, color = CV.method)) +
 
 # set up df for just the predictors and observations that went into pc8:
 
-df.PCR <- df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(preds.var.01$name)
+df.PCR <-  <- [,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(preds.var.01$name)
 
 # run PCA and determine the optimal number of compoents:
 

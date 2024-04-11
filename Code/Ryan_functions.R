@@ -1410,14 +1410,14 @@ seeds <- 1
 i <- 1
 j <- 1
 
-fun.compare.plsr.models <- function(df, seeds = 1:50, name){
+fun.compare.plsr.models <- function(df, seeds = 1:20, name){
   
   df.i <- data.frame(seed = NA, CV.method = NA, ncomp = NA)
   for (i in seq_along(seeds)){
-    set.seed(i)
     v.CV.method <- NA
     v.ncomp <- NA
     for(j in seq_along(l.trCon)){
+      set.seed(i)
       model.j <- train(term ~., data = df, 
                        method = 'pls', 
                        scale = TRUE, 
