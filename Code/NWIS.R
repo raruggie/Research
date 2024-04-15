@@ -476,9 +476,43 @@ df.TP_CQ<-df.TP_CQ.SP
 
 #
 
+#### Restrictions on Data ####
+
+# 1) 50 samples:
+
+df <- df.TP_CQ %>% filter(n>50)
+
+length(unique(df$site_no))
+
+# 2) over 20% of samples are above the 90% flow percentile:
+
+# determine the 90% flow for each site:
+
+df.Q.range <- df.NWIS.Q %>% 
+  filter(site_no %in% df$site_no) %>% 
+  group_by(site_no) %>% 
+  dplyr::reframe(CI = quantile(X_00060_00003,c(.90), na.rm = T))
+
+# merge this with the CQ df:
+
+df.Q.range <- left_join(df, df.Q.range, by = 'site_no') 
+
+# filter to samples above the 90% threshold column, add column, and filter:
+  
+df.Q.range <- df.Q.range%>% 
+  filter(X_00060_00003 >= CI) %>% 
+  mutate(n_90 = n()) %>% 
+  mutate(perc_90 = n_90/n) %>% 
+  distinct(site_no, perc_90) %>% 
+  arrange(perc_90) %>% 
+  filter(perc_90 >= .20)
+
+fun.map.DA(df.Q.range$site_no)
+
+df.TP_CQ <- df.TP_CQ %>% filter(site_no %in% df.Q.range$site_no)
 
 
-
+#
 
 
 
@@ -1572,7 +1606,7 @@ ggplot(df.cor.top10, aes(x=term, y=Spearman_Correlation, color=term))+
 
 
 
-#### Model Building ####
+#### PCA ####
 
 #### ~ PCA 1 ####
 
@@ -1821,6 +1855,25 @@ pc3 <- prcomp(df.PCA %>% filter(Name %in% df.middle.sites$site_no) %>% filter(!N
 
 fun.PCA.biplot.individuals(pc3)
 
+#### 
+
+#### Hypothesis testing ####
+
+# using the NYS data, lets test the following hypotheses:
+
+#### ~ H1 ####
+
+# H1: Unless nearly 100% forested, most catchments display nutrient mobilization as Q increases
+
+# How to test this:
+
+# the first way I can think of is to use regression to predict the slope of the CQ relationship
+
+
+
+
+
+
 # lets run PLSR for three response variables:
 
 # OLS slope
@@ -1835,30 +1888,52 @@ l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% filter(Name %in% df.middle.s
 
 # run plsr for different CVtecniques and seeds:
 
-l.plsr.10 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], seeds = 1:10, name = names(l.resp.allpred)[list.e]))
-l.plsr.20 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], seeds = 1:20, name = names(l.resp.allpred)[list.e]))
-l.plsr.50 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], seeds = 1:50, name = names(l.resp.allpred)[list.e]))
+# l.plsr.10 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], seeds = 1:10, name = names(l.resp.allpred)[list.e]))
+# l.plsr.20 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], seeds = 1:20, name = names(l.resp.allpred)[list.e]))
+# l.plsr.50 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.plsr.models(df = l.resp.allpred[[list.e]], seeds = 1:50, name = names(l.resp.allpred)[list.e]))
 
-save(l.plsr.10, file = 'Processed_Data/l.plsr.10.Rdata')
-save(l.plsr.20, file = 'Processed_Data/l.plsr.20.Rdata')
-save(l.plsr.50, file = 'Processed_Data/l.plsr.50.Rdata')
+# save(l.plsr.10, file = 'Processed_Data/l.plsr.10.Rdata')
+# save(l.plsr.20, file = 'Processed_Data/l.plsr.20.Rdata')
+# save(l.plsr.50, file = 'Processed_Data/l.plsr.50.Rdata')
 
-l.plsr <- list(l.plsr.10, l.plsr.20, l.plsr.50) %>% purrr::set_names('10','20','50')
+# l.plsr <- list(l.plsr.10, l.plsr.20, l.plsr.50) %>% purrr::set_names('10','20','50')
 
-# extract bestTune:
+load('Processed_Data/l.plsr.10.Rdata')
 
-l.extract <-lapply(l.plsr, bind_rows)
+# combine list elements (one for eac hresponse variable):
 
+df.plsr.compare <-bind_rows(l.plsr.10)
 
-p1 <- ggplot(l.extract[[1]], aes(x = seed, y = ncomp, color = CV.method)) +
+# make plot of best tuning parameter:
+
+ggplot(df.plsr.compare, aes(x = seed, y = ncomp, color = CV.method)) +
   geom_line() +
   facet_wrap(~resp.name)
 
-p2 <- p1 %+% l.extract[[2]]
+# there seems to be a lot of instability in the tuning parameter ncomp for the AANY and OLS.slope response variables
+# When predictors are correlated, their relative rank orders can depend heavily on the vagaries of the data sample, depending on which of the correlated predictors happened to work "better" in that sample
 
-p3 <- p1 %+% l.extract[[3]]
+# lets try PCR:
 
-grid.arrange(p1,p2,p3, nrow = 3)
+l.pcr.10 <- lapply(seq_along(l.resp.allpred), \(list.e) fun.compare.pcr.models(df = l.resp.allpred[[list.e]], seeds = 1:10, name = names(l.resp.allpred)[list.e]))
+
+save(l.pcr.10, file = 'Processed_Data/l.pcr.10.Rdata')
+
+# combine list elements:
+
+df.pcr.compare <-bind_rows(l.pcr.10)
+
+# make plot of best tuning parameter:
+
+ggplot(df.pcr.compare, aes(x = seed, y = ncomp, color = CV.method)) +
+  geom_line() +
+  facet_wrap(~resp.name)
+
+# there is still instbility with PCR...
+
+# lets just pick ncomp based on the rule that n/10 > p
+# n = 36, so lets use ncomp = 4
+
 
 
 #

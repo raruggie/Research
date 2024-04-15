@@ -1,3 +1,23 @@
+
+# function that will calculate your confidence interval according to the t-distribution:
+
+confidence_interval <- function(vector, interval) {
+  # Standard deviation of sample
+  vec_sd <- sd(vector)
+  # Sample size
+  n <- length(vector)
+  # Mean of sample
+  vec_mean <- mean(vector)
+  # Error according to t distribution
+  error <- qt((interval + 1)/2, df = n - 1) * vec_sd / sqrt(n)
+  # Confidence interval as a vector
+  result <- c("lower" = vec_mean - error, "upper" = vec_mean + error)
+  return(result)
+}
+
+
+
+
 # function to turn streamstats polygons into vects
 # use 100 for small_artefacts_threshold
 
@@ -1407,26 +1427,56 @@ i <- 1
 
 seeds <- 1
 
-i <- 1
-j <- 1
+i <- 3
+j <- 4
 
 fun.compare.plsr.models <- function(df, seeds = 1:20, name){
   
-  df.i <- data.frame(seed = NA, CV.method = NA, ncomp = NA)
+  df.i <- data.frame(seed = NA, CV.method = NA, ncomp = NA, RMSE = NA)
   for (i in seq_along(seeds)){
     v.CV.method <- NA
     v.ncomp <- NA
+    v.RMSE <- NA
     for(j in seq_along(l.trCon)){
       set.seed(i)
       model.j <- train(term ~., data = df, 
-                       method = 'pls', 
+                       method = 'plsr', 
                        scale = TRUE, 
                        trControl = l.trCon[[j]], 
                        tuneGrid = data.frame(ncomp = c(1:30)))
       v.CV.method[j] <- names(l.trCon)[j]
       v.ncomp[j] <- model.j$bestTune[1,1]
+      v.RMSE[j] <- min(model.j$results$RMSE)
     }
-    df.j <- data.frame(seed = i, CV.method = v.CV.method, ncomp = v.ncomp)
+    df.j <- data.frame(seed = i, CV.method = v.CV.method, ncomp = v.ncomp, RMSE = v.RMSE)
+    df.i <- rbind(df.i, df.j)
+  }
+  
+  df.i <- df.i[-1,]
+  df.i$resp.name <- name
+  
+  return(df.i)
+}
+
+fun.compare.pcr.models <- function(df, seeds = 1:20, name){
+  
+  df.i <- data.frame(seed = NA, CV.method = NA, ncomp = NA, RMSE = NA)
+  for (i in seq_along(seeds)){
+    v.CV.method <- NA
+    v.ncomp <- NA
+    v.RMSE <- NA
+    for(j in seq_along(l.trCon)){
+      set.seed(i)
+      model.j <- train(term ~., data = df, 
+                       method = 'pcr', 
+                       scale = TRUE, 
+                       trControl = l.trCon[[j]], 
+                       tuneGrid = data.frame(ncomp = c(1:30)))
+      v.CV.method[j] <- names(l.trCon)[j]
+      v.ncomp[j] <- model.j$bestTune[1,1]
+      v.RMSE[j] <- min(model.j$results$RMSE)
+    }
+    df.j <- data.frame(seed = i, CV.method = v.CV.method, ncomp = v.ncomp, RMSE = v.RMSE)
     df.i <- rbind(df.i, df.j)
   }
   
@@ -1435,4 +1485,30 @@ fun.compare.plsr.models <- function(df, seeds = 1:20, name){
 
   return(df.i)
 }
+
+# function to fit PLSR models:
+
+df <- l.resp.allpred[[2]]
+
+fun.fit.plsr <- function(df, tuning.parameter = 4){
+  
+  df.fun <- df %>% select(term, contains('RIP100'), RIP.CSA.100)
+  
+  df.fun <- df %>% select(term, CSA_perc, Corn, R_PLANTNLCD06, R_FORESTNLCD06)
+  
+  # df.fun <- df
+  
+  model <- pls::plsr(term ~ ., data = df.fun, validation = 'CV')
+  
+  summary(model)
+  
+  # 
+  # model$coefficients
+  # 
+  # coef(model)
+  
+  varImp(model)
+  
+}
+
   
