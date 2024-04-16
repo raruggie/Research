@@ -1377,11 +1377,19 @@ FindOutliers <- function(data) {
 
 # function to plot one or multiple NWIS sites by site no:
 
-fun.map.DA <- function(v.site_no) {
+# v.site_no = df.g$Name
+# zcol.key = df.g
+
+load('Processed_Data/NWIS_Watershed_Shapefiles.62.Rdata')
+
+fun.map.DA <- function(v.site_no = df.sf.NWIS.62$Name, zcol.key = data.frame(Name = NA, Group = NA)) {
   
-  load('Processed_Data/NWIS_Watershed_Shapefiles.62.Rdata')
   temp<-df.sf.NWIS.62%>%filter(Name %in% v.site_no)
-  mapview(temp)
+  if(dim(zcol.key)[1]>1){
+    temp <- left_join(temp, zcol.key, by = 'Name')
+    mapview(temp, zcol = 'Group')
+  } else{mapview(temp)}
+  
   
 }
 
@@ -1488,7 +1496,7 @@ fun.compare.pcr.models <- function(df, seeds = 1:20, name){
 
 # function to fit PLSR models:
 
-df <- l.resp.allpred[[2]]
+# df <- l.resp.allpred[[2]]
 
 fun.fit.plsr <- function(df, tuning.parameter = 4){
   

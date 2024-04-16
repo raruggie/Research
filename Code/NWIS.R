@@ -1608,15 +1608,6 @@ ggplot(df.cor.top10, aes(x=term, y=Spearman_Correlation, color=term))+
 
 #### PCA ####
 
-#### ~ PCA 1 ####
-
-# boxplots of the response variables:
-
-df.setup[,v.resp.cols] %>% pivot_longer(cols = everything()) %>% 
-  ggplot(., aes(x = name, y = value)) +
-  geom_boxplot() +
-  theme(axis.text.x = element_text(angle = 20, vjust = 0.5, hjust=1))
-
 # ID and then map sites that are outliers:
 
 out.pos <- lapply(df.setup[,v.resp.cols], FindOutliers) %>% unlist %>% unique
@@ -1624,45 +1615,18 @@ outlier.sites <- df.setup$Name[out.pos]
 
 fun.map.DA(outlier.sites)
 
-# I want to look at non and outlier observations for the response variables against CSA_perc and drainage area
-
-# lets start with a look at CSA_perc:
-
-df.setup[,c(1,v.resp.cols, 43)] %>%
-  mutate(Outlier = ifelse(Name%in%outlier.sites, 'Outlier', 'Not')) %>%
-  # left_join(., df.DA, by = c('Name'='site_no')) %>%
-  select(-Name) %>%
-  pivot_longer(cols = -c(CSA_perc, Outlier)) %>%
-  ggplot(., aes(x = CSA_perc, y = value, color = Outlier)) +
-  geom_point() +
-  facet_wrap(~name, scales = 'free')
-
-# lets look at drainage area next:
-
-df.setup[,c(1,v.resp.cols)] %>%
-  mutate(Outlier = ifelse(Name%in%outlier.sites, 'Outlier', 'Not')) %>%
-  left_join(., df.DA, by = c('Name'='site_no')) %>%
-  select(-Name) %>%
-  pivot_longer(cols = -c(drain_area_va, Outlier)) %>%
-  ggplot(., aes(x = drain_area_va, y = value, color = Outlier)) +
-  geom_point() +
-  scale_x_log10() +
-  facet_wrap(~name, scales = 'free')
-
-# I am noticing when taking the log of draiange area the plots look really much more monotonic and linear... maybe we should use log of drainage area as a predictor and also maybe divide through by log drainage area for the AANY estimations?
-
-# now I set up a df for PCA. I set the row names as the site names:
+# set up a df for PCA:
 
 df.PCA <- df.setup
-rownames(df.PCA) <- df.PCA[,1]
+rownames(df.PCA) <- df.PCA[,1] # set the row names as the site names
 
-# I determine the top predictors based on variance:
+# determine the top predictors based on variance:
 
 preds.var <- df.PCA[,v.pred.cols] %>% pivot_longer(cols = everything()) %>% 
   group_by(name) %>% 
   dplyr::summarize(var = var(value)) %>% arrange(desc(var)) %>% ungroup() %>% top_n(16)
 
-# I also do variances based on standarized 0-1 variables:
+# also do variances based on standarized 0-1 variables:
 
 preds.var.01 <- df.PCA[,v.pred.cols] %>%
   lapply(., range01) %>%
@@ -1680,16 +1644,9 @@ setdiff(x,y) # "mean.daily.Q" "Elev_Avg"     "Elev_Median"  "Sum.WWTP.Q"   "HSG_
 
 setdiff(names(df.setup[,v.pred.cols]),y)
 
-# I find that when standardizing the variables these 5 predictors do not get included in the top half 
-# with the excpetion of HSG_C, all of these are not percentages, and I hypothesize that these will leverage the PCA because we have such a difference in site sizes, elevations, etc.
-
-# one other thing to try is which predictors replaced these:
-
 setdiff(y,x) # "R_CROPSNLCD06" "Corn" "R_RIP100_PLANT" "RIP.CSA.100" "BFI"  
 
-# I like that these get included
-
-# now Im ready for PCA
+# ready for PCA
 
 # there are lots of iterations to be had here:
 
@@ -1721,11 +1678,11 @@ l.pca.plot.biplot.obs[[1]]
 as.data.frame(summary(pc1)$importance)$PC2[3]
 min(which(summary(pc1)$importance[3,]>.95))
 
-# l.pca.plot.biplot.obs[[2]]
+l.pca.plot.biplot.obs[[2]]
 as.data.frame(summary(pc2)$importance)$PC2[3]
 min(which(summary(pc2)$importance[3,]>.95))
 
-# l.pca.plot.biplot.obs[[3]]
+l.pca.plot.biplot.obs[[3]]
 as.data.frame(summary(pc3)$importance)$PC2[3]
 min(which(summary(pc3)$importance[3,]>.95))
 
@@ -1737,59 +1694,89 @@ min(which(summary(pc4)$importance[3,]>.95))
 as.data.frame(summary(pc5)$importance)$PC2[3]
 min(which(summary(pc5)$importance[3,]>.95))
 
-# l.pca.plot.biplot.obs[[6]]
+l.pca.plot.biplot.obs[[6]]
 as.data.frame(summary(pc6)$importance)$PC2[3]
 min(which(summary(pc6)$importance[3,]>.95))
 
-# what I am seeing is that when inclduing the variables that are related to 
-# the watershed size, I can't pick out the larger sites, which makes sense
 
-# the lowest PC with >95% cumulative variability across these is 6. 
-# The difference for this seems to lie in using all predictors v.s. a subset of predictors
+# i want to make a map based on the three groups I am seeing in pc3 (all sites, restrctions on predictors):
 
-# looking at the biplot for pc6, lets look at the outlier sites based on PC2:
+# the first group will be greater than 0 for PC1 and greater than -0.5 for pc2
+# the second group will be greater than 0 for PC1 and less than -0.5 for PC2
+# the third group will be all sites less than 0 for pc1
 
-temp <- c('04260500', '04231600', '01357500', '04249000')
+df.pc3 <- as.data.frame(pc3$x)
 
-fun.map.DA(temp) # these are the largest watersheds in the dataset!
+g1<- rownames(df.pc3[df.pc3$PC1>0 & df.pc3$PC2>-0.5,])
+g2<- rownames(df.pc3[df.pc3$PC1>0 & df.pc3$PC2<=-0.5,])
+g3<- rownames(df.pc3[df.pc3$PC1<0,])
 
-# lets add these to the outlier list:
+v.g <- c(g1,g2,g3)
+v.g.names <- c(rep('g1', length(g1)),rep('g2', length(g2)),rep('g3', length(g3)))
 
-outlier.sites <- c(outlier.sites, temp)
+df.g <- data.frame(v.g, v.g.names) %>% rename(Name = 1, Group = 2)
 
-# now do PCA with the updated outlier set, and using the standarized (0-1) predictor set:
+fun.map.DA(df.g$Name, zcol.key = df.g)
 
-pc7 <- prcomp(df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(preds.var.01$name), center = TRUE, scale. = TRUE)
+# what if I remove cattargus and genese river, because they are so weird/big and rerun pc3?
+# this is basically pc6 with only 2 outlier sites now:
 
-fun.PCA.biplot.individuals(pc7)
+outlier.sites <- c("04231600","04213500")
 
-as.data.frame(summary(pc7)$importance)$PC2[3] # we improve slightly on pc6
-min(which(summary(pc7)$importance[3,]>.95)) # same as pc6
+pc3a <- prcomp(df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(preds.var.01$name), center = TRUE, scale. = TRUE)
 
-# there is a section of sites that are explained more by Dim2.
+as.data.frame(summary(pc3a)$importance)$PC2[3]
+min(which(summary(pc3a)$importance[3,]>.95))
 
-# lets look at these sites:
+fun.PCA.biplot.individuals(pc3a)
 
-temp <- c("0423205010","0423205025","04232050",'01356190','04232034')
+# the groupings look much different
 
-fun.map.DA(temp) # these are urban watersheds
+df.pc3 <- as.data.frame(pc3a$x)
 
-# I say lets removing em' and rerun PCA:
+g1<- rownames(df.pc3[df.pc3$PC1>0 & df.pc3$PC2>-1,])
+g2<- rownames(df.pc3[df.pc3$PC1>0 & df.pc3$PC2<=-1,])
+g3<- rownames(df.pc3[df.pc3$PC1<0,])
 
-outlier.sites <- c(outlier.sites, temp)
+v.g <- c(g1,g2,g3)
+v.g.names <- c(rep('g1', length(g1)),rep('g2', length(g2)),rep('g3', length(g3)))
 
-pc8 <- prcomp(df.PCA[,c(1,v.pred.cols)] %>% filter(!Name %in% outlier.sites) %>% select(-Name) %>% select(preds.var.01$name), center = TRUE, scale. = TRUE)
+df.g <- data.frame(v.g, v.g.names) %>% rename(Name = 1, Group = 2)
 
-fun.PCA.biplot.individuals(pc8)
+fun.map.DA(df.g$Name, zcol.key = df.g)
 
-as.data.frame(summary(pc8)$importance)$PC2[3] # we improve slightly on pc7
-min(which(summary(pc8)$importance[3,]>.95)) # improve on pc7
+# I dont see much difference between 1 and 2 (I dont know why just three are in 2)
+# I suspect it could be something with near stream CSA,
+# so I want to look at that map:
 
-# now we have over 70% of the variabilit explained in the first PC
+df.rip.csa <- df.setup %>% 
+  filter(Name %in% df.g$Name) %>% 
+  select(Name, R_PLANTNLCD06) %>% 
+  rename(Group = 2)
+
+fun.map.DA(df.rip.csa$Name, df.rip.csa)
+
+# so those three stand out because they have much higher watershed percent agriculture
+
+# the issue now becomes we only have three agricultural sites
+
+# lets look at map of all 62 sites (minus the largest ones) or whatever based on agriculture:
+
+outlier.sites <- c(outlier.sites,  c('04260500', '04231600', '01357500', '04249000'))
+
+df.map <- df.datalayers.62 %>% 
+  filter(!Name %in% outlier.sites) %>% 
+  select(Name, R_PLANTNLCD06) %>% 
+  rename(Group = 2)
+
+fun.map.DA(df.map$Name, df.map)
+
+# it doesnt look there are many more sites to add back in that have similar ag to the three I kept...
 
 # lets look at the biplot of predictor variables:
 
-fviz_pca_var(pc8,
+fviz_pca_var(pc3a,
+             axes = c(1, 2),
              col.var = "contrib", # Color by contributions to the PC
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE     # Avoid text overlapping
@@ -1800,78 +1787,167 @@ fviz_pca_var(pc8,
 
 # lets look at the actual ranks of importance:
 
-df.importance <- as.data.frame(pc8$rotation) %>% arrange(PC1, desc = F)
+df.importance <- as.data.frame(pc3a$rotation) %>% arrange(PC1, desc = F)
 
-# this is really interesting, HSGD has the lowest positive contribution to PC1
 
-# However, the weights in PC1 were not adjusted for the variability in the response variable(s)
-# therefore we need to use PLSR
 
-#### ~ PCA 2 ####
 
-# filter sites betwenn 10 and 1000 sqmiles:
 
-df.middle.sites <- df.DA %>% 
-  filter(site_no %in% df.setup$Name) %>% 
-  filter(drain_area_va>10 & drain_area_va<1000)
 
-# 46 sites
 
-fun.map.DA(df.middle.sites$site_no)
 
-sort(df.middle.sites$drain_area_va)
 
-# run PCA:
 
-pc1 <- prcomp(df.PCA %>% filter(Name %in% df.middle.sites$site_no) %>% select(v.pred.cols), center = TRUE, scale. = TRUE)
 
-fun.PCA.biplot.individuals(pc2)
 
-fviz_pca_var(pc1,
-             col.var = "contrib", # Color by contributions to the PC
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
-)
 
-# lets remove the three sites less than -2 in PC2:
 
-outlier.sites <- rownames(as.data.frame(pc1$x) %>% filter(PC2 < -2))
 
-fun.map.DA(outlier.sites)
 
-pc2 <- prcomp(df.PCA %>% filter(Name %in% df.middle.sites$site_no) %>% filter(!Name %in% outlier.sites) %>% select(v.pred.cols), center = TRUE, scale. = TRUE)
 
-fun.PCA.biplot.individuals(pc2)
 
-# lets remove sites >2:
 
-temp <- rownames(as.data.frame(pc2$x) %>% filter(PC2>2))
 
-fun.map.DA(temp)
 
-outlier.sites <- c(outlier.sites, temp)
 
-pc3 <- prcomp(df.PCA %>% filter(Name %in% df.middle.sites$site_no) %>% filter(!Name %in% outlier.sites) %>% select(v.pred.cols), center = TRUE, scale. = TRUE)
 
-fun.PCA.biplot.individuals(pc3)
 
-#### 
+
+
+
+
+
+
+
 
 #### Hypothesis testing ####
 
-# using the NYS data, lets test the following hypotheses:
+# set up list of dataframes for response variables and predictors
+
+# OLS slope
+# OLS slope stormflow samples
+# AANY.hydrosep
+# medC
+
+resp.vars <- c("OLS.Slope.1s", "OLS.Slope.2s_hydrosep_post", "OLS.AANY.2s.hydrosep.method2", "medC")
+
+# One last check of the site restrictions:
+# I want to make sure that at least 25 samples make up the stormflow segmenet:
+
+test <- df.RP %>% 
+  filter(Name %in% df.g$Name) %>% 
+  filter(Q_type == 'Stormflow') %>% 
+  group_by(Name) %>% 
+  summarise(n_storm=n()) %>% 
+  arrange(n_storm)
+
+test1 <- df.TP_CQ %>% 
+  distinct(site_no, n) %>% 
+  rename(Name = 1) %>% 
+  left_join(., test, by = 'Name') %>% 
+  mutate(frac = n_storm/n) %>% 
+  arrange(frac)
+
+ggplot(df.RP, aes(x = log_Q, y = log_C, color = Q_type)) +
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  facet_wrap(~Name, scales = 'free')
+
+# looks good
+
+# set up dataframes for the 4 response variables::
+
+l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% filter(Name %in% df.g$Name) %>% select(i, v.pred.cols) %>% rename(term = 1)) %>% purrr::set_names(resp.vars)
+
+# lets look at the distributions of the response variables:
+
+l.resp.allpred[[1]] %>% 
+  pivot_longer(cols = everything()) %>% 
+  ggplot(., aes(value))+
+  geom_dotplot()+
+  facet_wrap(~name, scales = 'free')
+
+# lets look at histogram of term colored by percent forest:
+
+l.resp.allpred[[2]] %>% 
+  ggplot(., aes(term))+
+  geom_histogram(aes(fill = R_FORESTNLCD06, group = R_FORESTNLCD06))
+
+# using the NYS data, test the following hypotheses:
 
 #### ~ H1 ####
 
 # H1: Unless nearly 100% forested, most catchments display nutrient mobilization as Q increases
 
-# How to test this:
+# what we see with the histograms:
 
-# the first way I can think of is to use regression to predict the slope of the CQ relationship
+bind_rows(l.resp.allpred[[1]] %>% pivot_longer(-term) %>% mutate(resp = 'Overall Slope', .before = 1), l.resp.allpred[[2]] %>% pivot_longer(-term) %>% mutate(resp = 'Stormflow Slope', .before = 1)) %>% 
+  filter(name == 'R_FORESTNLCD06') %>% 
+  pivot_wider(names_from = name, values_from = value) %>% 
+  ggplot(., aes(term))+
+  geom_histogram(aes(fill = R_FORESTNLCD06, group = R_FORESTNLCD06))+
+  facet_wrap(~resp)+
+  ylab('Number of Sites')+
+  xlab('Slope Value')
+
+# is that lower forest does not equate with more slope...
+
+#### ~ H2 ####
+
+# H2: Aggregate measures of the fraction developed land (ie. total ag, total urban) provide moderate explanation of watershed variations in nutrient load
+
+# pick just these to try to predict yield and medC:
+
+l.H2 <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, R_PLANTNLCD06, R_DEVNLCD06) %>% lm(term ~ ., data = .))
+
+summary(l.H2[[1]]) # none are significant in predicting the yield
+summary(l.H2[[2]]) # agriculture is significant at 5% and developed is signficant at 10% for predicting medC
+
+# lets try PLSR:
+
+l.H2 <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, R_PLANTNLCD06, R_DEVNLCD06) %>% pls::plsr(term ~ ., data = ., scale = T, validation = 'CV',segments = 10,jackknife = TRUE))
+
+RMSEP(l.H2[[1]])
+RMSEP(l.H2[[2]])
+
+R2(l.H2[[1]])
+R2(l.H2[[2]])
+
+varImp(l.H2[[1]])
+varImp(l.H2[[2]])
 
 
 
+#### ~ H3 ####
 
+# H3: Incorporating measures of the fraction of developed land in close proximity to streams (i.e. land use within stream buffers) improves prediction of watershed variations in nutrient load
+
+# pick just these to try to predict yield and medC:
+
+l.H3 <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, RIP.CSA.100, R_RIP100_DEV, R_RIP100_PLANT) %>% lm(term ~ ., data = .))
+
+summary(l.H3[[1]]) # none are signficant in predicting the yield
+summary(l.H3[[2]]) # agriculture is significant at 10% for predicting medC
+
+# lets try plsr:
+
+l.H3 <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, RIP.CSA.100, R_RIP100_DEV, R_RIP100_PLANT) %>% pls::plsr(term ~ ., data = ., scale = T, validation = 'CV',segments = 10,jackknife = TRUE))
+
+varImp(l.H3[[1]])
+varImp(l.H3[[2]])
+
+RMSEP(l.H3[[1]])
+RMSEP(l.H3[[2]])
+
+R2(l.H3[[1]])
+R2(l.H3[[2]])
+
+# lets compare l.H2 and l.H3:
+
+RMSEP(l.H2[[2]])
+RMSEP(l.H3[[2]])
+
+# RMSEP did not go down
 
 
 # lets run PLSR for three response variables:
