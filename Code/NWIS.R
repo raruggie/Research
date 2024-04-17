@@ -371,7 +371,7 @@ length(unique(df.NWIS.TP_CQ$site_no))
 # number of sample filter again because some sites 
 # have data pre and post 2001
 
-temp1<-df.NWIS.TP_CQ%>%filter(sample_dt >= as.Date('2001-01-10'))%>%
+temp1<-df.NWIS.TP_CQ%>%filter(sample_dt >= as.Date('2001-01-01'))%>%
   group_by(site_no)%>%
   mutate(n=n())%>%
   filter(n>=20)
@@ -480,7 +480,7 @@ df.TP_CQ<-df.TP_CQ.SP
 
 # 1) 50 samples:
 
-df <- df.TP_CQ %>% filter(n>50)
+df <- df.TP_CQ %>% filter(n>=50)
 
 length(unique(df$site_no))
 
@@ -723,7 +723,7 @@ df.OLS <- left_join(df.OLS,temp,by='Name')%>%as.data.frame()
 
 # AANY:
 
-df.median.Q<-df.TP_CQ%>%group_by(site_no)%>%summarise(median_Q=median(X_00060_00003))
+df.median.Q<-df.RP%>%group_by(Name)%>%summarise(median_Q=median(X_00060_00003))
 
 l.lm.pre <- df.RP%>%
   filter(X_00060_00003<median(X_00060_00003))%>%
@@ -739,7 +739,7 @@ l.lm.post <- df.RP%>%
 
 names(l.lm.pre)==names(l.lm.post)
 names(l.lm.pre)==names(l.RP)
-names(l.lm.pre)==df.median.Q$site_no
+names(l.lm.pre)==df.median.Q$Name
 
 # back to workflow:
 
@@ -999,7 +999,7 @@ l.lm.post <- df.RP%>%
 
 names(l.lm.pre)==names(l.lm.post)
 names(l.lm.pre)==names(l.RP)
-names(l.lm.pre)==df.median.Q$site_no
+names(l.lm.pre)==df.median.Q$Name
 
 # back to workflow:
 
@@ -1877,6 +1877,8 @@ l.resp.allpred[[2]] %>%
 
 #### ~ H1 ####
 
+library(pls)
+
 # H1: Unless nearly 100% forested, most catchments display nutrient mobilization as Q increases
 
 # what we see with the histograms:
@@ -1896,58 +1898,84 @@ bind_rows(l.resp.allpred[[1]] %>% pivot_longer(-term) %>% mutate(resp = 'Overall
 
 # H2: Aggregate measures of the fraction developed land (ie. total ag, total urban) provide moderate explanation of watershed variations in nutrient load
 
+# check correlation:
+
+corrplot::corrplot(cor(l.resp.allpred[[3]] %>% select(term, R_PLANTNLCD06, R_DEVNLCD06)))
+
 # pick just these to try to predict yield and medC:
 
-l.H2 <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, R_PLANTNLCD06, R_DEVNLCD06) %>% lm(term ~ ., data = .))
+l.H2.lm <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, R_PLANTNLCD06, R_DEVNLCD06) %>% lm(term ~ ., data = .))
 
-summary(l.H2[[1]]) # none are significant in predicting the yield
-summary(l.H2[[2]]) # agriculture is significant at 5% and developed is signficant at 10% for predicting medC
+summary(l.H2.lm[[1]]) # none are significant in predicting the yield
+summary(l.H2.lm[[2]]) # agriculture is significant at 5% and developed is signficant at 10% for predicting medC
 
 # lets try PLSR:
 
-l.H2 <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, R_PLANTNLCD06, R_DEVNLCD06) %>% pls::plsr(term ~ ., data = ., scale = T, validation = 'CV',segments = 10,jackknife = TRUE))
+l.H2.plsr <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, R_PLANTNLCD06, R_DEVNLCD06) %>% pls::plsr(term ~ ., data = ., scale = T, validation = 'CV',segments = 10,jackknife = TRUE))
 
-RMSEP(l.H2[[1]])
-RMSEP(l.H2[[2]])
+RMSEP(l.H2.plsr[[1]])
+RMSEP(l.H2.plsr[[2]])
 
-R2(l.H2[[1]])
-R2(l.H2[[2]])
+R2(l.H2.plsr[[1]])
+R2(l.H2.plsr[[2]])
 
-varImp(l.H2[[1]])
-varImp(l.H2[[2]])
-
+varImp(l.H2.plsr[[1]])
+varImp(l.H2.plsr[[2]])
 
 
 #### ~ H3 ####
 
 # H3: Incorporating measures of the fraction of developed land in close proximity to streams (i.e. land use within stream buffers) improves prediction of watershed variations in nutrient load
 
+corrplot::corrplot(cor(l.resp.allpred[[3]] %>% select(term, R_PLANTNLCD06, R_DEVNLCD06, RIP.CSA.100, R_RIP100_DEV, R_RIP100_PLANT)))
+
+# for lm, just use one of RIP.CSA.100, R_RIP100_PLANT, or R_PLANTNLCD06 and just one of R_RIP100_DEV or R_DEVNLCD06
+
+# for plsr, can try all...
+
 # pick just these to try to predict yield and medC:
 
-l.H3 <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, RIP.CSA.100, R_RIP100_DEV, R_RIP100_PLANT) %>% lm(term ~ ., data = .))
+l.H3.lm <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, R_RIP100_DEV, R_RIP100_PLANT) %>% lm(term ~ ., data = .))
 
-summary(l.H3[[1]]) # none are signficant in predicting the yield
-summary(l.H3[[2]]) # agriculture is significant at 10% for predicting medC
+summary(l.H3.lm[[1]]) # none are signficant in predicting the yield
+summary(l.H3.lm[[2]]) # agriculture is significant at 5% for predicting medC
 
 # lets try plsr:
 
-l.H3 <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, RIP.CSA.100, R_RIP100_DEV, R_RIP100_PLANT) %>% pls::plsr(term ~ ., data = ., scale = T, validation = 'CV',segments = 10,jackknife = TRUE))
+l.H3.plsr <- lapply(l.resp.allpred[3:4], \(i) i %>% select(term, R_PLANTNLCD06, R_DEVNLCD06, RIP.CSA.100, R_RIP100_DEV, R_RIP100_PLANT) %>% pls::plsr(term ~ ., data = ., scale = T, validation = 'CV',segments = 10,jackknife = TRUE))
 
-varImp(l.H3[[1]])
-varImp(l.H3[[2]])
+varImp(l.H3.plsr[[1]])
+varImp(l.H3.plsr[[2]])
 
-RMSEP(l.H3[[1]])
-RMSEP(l.H3[[2]])
+RMSEP(l.H3.plsr[[1]])
+RMSEP(l.H3.plsr[[2]])
 
-R2(l.H3[[1]])
-R2(l.H3[[2]])
+R2(l.H3.plsr[[1]])
+R2(l.H3.plsr[[2]])
 
-# lets compare l.H2 and l.H3:
+# lets compare l.H2 and l.H3 for lm and plsr for yield and medC:
 
-RMSEP(l.H2[[2]])
-RMSEP(l.H3[[2]])
+summary(l.H2.lm[[1]])$adj.r.squared
+summary(l.H3.lm[[1]])$adj.r.squared
 
-# RMSEP did not go down
+# does not improve for yield
+
+summary(l.H2.lm[[2]])$adj.r.squared
+summary(l.H3.lm[[2]])$adj.r.squared
+
+# does not improve for medC
+
+R2(l.H2.plsr[[1]])
+R2(l.H3.plsr[[1]])
+
+# does not improve for yield
+
+R2(l.H2.plsr[[2]])
+R2(l.H3.plsr[[2]])
+
+# does not improve for medC
+
+
 
 
 # lets run PLSR for three response variables:

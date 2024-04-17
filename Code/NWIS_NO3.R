@@ -157,56 +157,46 @@ df.NWIS.NO3<-read.csv("Raw_Data/df.NWIS.NO3.csv", colClasses = c(site_no = "char
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #### Building CQ df ####
 
 # join the NO3 with the flow df:
 
 df.NWIS.NO3_CQ<-left_join(df.NWIS.NO3, df.NWIS.Q.for_NO3, by=c("site_no"="site_no", "sample_dt"="Date"))
 
-# remove observations where there are not CQ pairs:
-
-df.NWIS.NO3_CQ<-df.NWIS.NO3_CQ%>%drop_na(X_00060_00003)
-
 # take average of multiple samples on the same day at the same site:
 
 df.NWIS.NO3_CQ<-df.NWIS.NO3_CQ%>%
   group_by(site_no, sample_dt)%>%
-  summarise_at(vars(result_va, X_00060_00003), funs(mean(., na.rm=TRUE)))
+  summarise_at(vars(result_va, X_00060_00003), funs(mean(., na.rm=TRUE)))%>%
+  ungroup()
 
-# arrange by number of NO3 observations. To do this:
+# remove sites where there are not >= 20 CQ pairs:
 
-# first arrange the dataframe with the number of samples: 
+df.NWIS.NO3_CQ<-df.NWIS.NO3_CQ%>%
+  drop_na(result_va, X_00060_00003)%>%
+  group_by(site_no)%>%
+  mutate(n=n())%>%
+  ungroup()%>%
+  filter(n>=20)%>%
+  select(-n) # remove n column because going to get added back in next steps
+
+# add column for number of paired observations by rank: to do this:
+
+# create column for n_sample_rank:
 
 temp<-df.NWIS.NO3%>%group_by(site_no)%>%
   summarise(n=n())%>%
   arrange(desc(n))%>%
   mutate(n_sample_rank=rank(-n, ties.method='first'))
 
-# merge this df with df.NWIS.NO3_CQ and arrange by the new column:
+# merge this df with df.NWIS.TP_CQ and arrange by the new column:
 
 df.NWIS.NO3_CQ<-left_join(df.NWIS.NO3_CQ,temp, by='site_no')%>%
   arrange(n_sample_rank)
 
-# next step is to use Q yield to get better looking plot... idk if it will help but want to try also doesnt hurt to have the watershed areas as well. To do this:
+# next step is to determine which sites have draiange area listed
+# if no draiange area is listed, there is no way to determine if delineation
+# is correct. to do this:
 
 # download the drainage areas from site metadata using readNWISsite
 
@@ -221,88 +211,18 @@ df.NWIS.NO3_site_metadata<-read.csv("Raw_Data/df.NWIS.NO3_site_metadata.csv", co
 df.DA<-df.NWIS.NO3_site_metadata%>%
   select(site_no, drain_area_va)
 
-# finally merge with df.NWIS.NO3_CQ and create a new Q column with area normalized flows (not worrying about units right now): 
-# Note: will filter for NA in C and Q for breakpoint analysis in the next step as to keep the full list of sites with CQ pairs in this dataframe.
-# Note: Some sites returned NA on draiange areas in readNWISsite, but I'll delinate anyways so I want the full list:
+# finally merge with df.NWIS.TP_CQ and create a new Q column with area normalized flows (not worrying about units right now): 
+# Note: Some sites returned NA on draiange areas in readNWISsite:
 
 df.NWIS.NO3_CQ<-left_join(df.NWIS.NO3_CQ, df.DA, by = 'site_no')%>%
-  mutate(Q_yield = X_00060_00003/drain_area_va)
+  mutate(Q_yield = X_00060_00003/drain_area_va)%>%
+  drop_na(drain_area_va)
 
-#
-
-
-
+# length(unique(df.NWIS.NO3_CQ$site_no))  59 sites
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#### Tradeoff matrix ####
-
-# build a matrix of the number of NO3 samples as a function of watershed size. To do this:
-
-# I already have a df with paired CQ observations and DA, just need to get the distinct sites:
-
-NO3_sites<-df.NWIS.NO3_CQ%>%distinct(site_no, .keep_all = T)
-
-# set up df to populate:
-
-m<-data.frame(Min_num_samples  = c(20,50,75,100,200), '25' = NA, '50' = NA, '100' = NA, '150'=NA, '250'=NA, '500'=NA, '1000'=NA, 'Unlimited'=NA)
-
-# set up variables for thresholds for number of samples and DA size:
-
-n_sam<- c(20,50,75,100,200)-1
-
-min_DA<- c(25,50,100,150,250,500,1000)
-
-# loop through number of samples (rows):
-
-# i<-1
-
-for (i in seq_along(n_sam)){
-  
-  temp.i<-NO3_sites%>%filter(n>n_sam[i])
-  
-  m$Unlimited[i]<-dim(temp.i)[1]
-  
-  # j<-2
-  
-  # loop through the size of the DA (columns)
-  for(j in  seq_along(min_DA)){
-    
-    temp.j<-temp.i%>%filter(drain_area_va<=min_DA[j])
-    
-    m[i,j+1]<-dim(temp.j)[1]
-    
-  }
-  
-}
-
-m
-
-#
 
 
 
@@ -330,98 +250,68 @@ m
 
 #### Apply filters to sites ####
 
-# the first filter is to remove data points and thus potentially entire sites
-# that are prior to 2000:
+# number of sites with >=20 paired CQ observations:
 
-temp1<-df.NWIS.NO3_CQ%>%filter(sample_dt >= as.Date('2001-01-10'))
+length(unique(df.NWIS.NO3_CQ$site_no))
 
-unique(temp1$site_no)
+# 1) sites with samples after 2001:
 
-# 14 sites, BUT:
+# note that you need to rerun the 
+# number of sample filter again because some sites 
+# have data pre and post 2001
 
-# how many of these sites have 20 paired CQ observations?
-
-temp1.1<-temp1%>%
-  rename(Name = site_no)%>%
-  select(Name, sample_dt,result_va, X_00060_00003)%>%mutate(log_C = log(result_va), log_Q = log(X_00060_00003), C = result_va, Q = X_00060_00003)%>%
-  filter(is.finite(log_C))%>%
-  filter(is.finite(log_Q))%>%
-  group_by(Name)%>%
-  summarise(n=n())%>%
+temp1<-df.NWIS.NO3_CQ%>%filter(sample_dt >= as.Date('2001-01-01'))%>%
+  group_by(site_no)%>%
+  mutate(n=n())%>%
   filter(n>=20)
 
-dim(temp1.1)[1] 
-
-# only 13
-
-# reduce temp1 to these sites:
-
-temp1<-temp1%>%filter(site_no %in% temp1.1$Name)
-
-# the next filter is to remove sites that are on long island
-# to do this use latitude:
-
-temp2<-filter(df.NWIS.NO3_site_metadata, dec_lat_va >40.9364)
-
-# now use this site list to filter down the df.NO3_CQ:
-
-temp3<-temp1%>%filter(site_no %in% temp2$site_no)
-
-unique(temp3$site_no)
+length(unique(temp1$site_no))
 
 # 13 sites
 
-# the last filter is gauges 2:
+# 2) sites not on long island
 
-# read in all sheets using function
+# use latitude to filter:
 
-# l.G2 <- read_excel_allsheets("Raw_Data/gagesII_sept30_2011_conterm.xlsx")
+temp2<-temp1%>%filter(site_no %in% filter(df.NWIS.NO3_site_metadata, dec_lat_va >40.9364)$site_no)
 
-# remove the last element (does notcomtain useful info)
+length(unique(temp2$site_no))
 
-# l.G2[[27]]<-NULL
+# 13 sites
 
-# and convert to a single df
+# 3) sites in gauges 2
 
-# df.G2<-reduce(l.G2, full_join, by = "STAID")
+# read in G2: to do this
 
-# save df.G2:
-
-# save(df.G2, l.G2, file = 'Processed_Data/df.G2.Rdata')
-
-# load df.G2:
-
-load('Processed_Data/df.G2.Rdata')
+# l.G2 <- read_excel_allsheets("Raw_Data/gagesII_sept30_2011_conterm.xlsx") # read in all sheets using function:
+# l.G2[[27]]<-NULL # remove the last element (does notcomtain useful info)
+# df.G2<-reduce(l.G2, full_join, by = "STAID") # convert to a single df
+# save(df.G2, l.G2, file = 'Processed_Data/df.G2.Rdata') # save df.G2:
+load('Processed_Data/df.G2.Rdata') # load df.G2:
 
 # filter on G2:
 
-temp4<-temp3%>%filter(site_no %in% df.G2$STAID)
+temp3<-temp2%>%filter(site_no %in% df.G2$STAID)
 
-unique(temp4$site_no)
+length(unique(temp3$site_no))
 
-# 12 sites
+# 6 sites
 
-# save this as the df to move onto future analysis:
-# need to alsoremove samples after 2001:
-
-df.NO3_CQ<-temp4%>%filter(sample_dt >= as.Date('2001-01-10'))
-
-# map:
-
-# df.NWIS.NO3_site_metadata%>%
-#   filter(site_no %in% temp4$site_no)%>%
-#   st_as_sf(.,coords=c('dec_long_va','dec_lat_va'), crs = 4326, remove = FALSE)%>%
-#   mapview(.)
+# one last test: redoing the filters but with no removing date restriction:
 
 # number of sites in gauges 2:
 
-x<-filter(df.NWIS.NO3_site_metadata, site_no %in% df.G2$STAID)
+x1<-filter(df.NWIS.NO3_CQ, site_no %in%df.G2$STAID)
 
-# 48 sites
+length(unique(x1$site_no))
 
-# number of sites in gauges 2 and not on LI (i.e. without post 2001 filter):
+# 44 sites
 
-x<-temp2%>%filter(site_no%in% df.G2$STAID)
+# number of sites in gauges 2 and not on LI:
+
+x2<-x1%>%filter(site_no %in% filter(df.NWIS.NO3_site_metadata, dec_lat_va >40.9364)$site_no)
+
+length(unique(x2$site_no))
 
 # 33 sites
 
@@ -448,12 +338,62 @@ x<-temp2%>%filter(site_no%in% df.G2$STAID)
 
 
 
+#### ! Finalizing df.TP_CQ to move on in code ####
 
+# first pass 
 
-#### Export data ####
+df.NO3_CQ<-temp3
 
-# save(df.NO3_CQ,file = 'Processed_Data/NO3.Rdata')
+# second pass
 
+df.NO3_CQ.SP<-temp2
+
+# going to write over df.TP_CQ for this code to work smoothly with the these sites
+
+df.NO3_CQ<-df.NO3_CQ.SP
+
+#
+
+#### Restrictions on Data ####
+
+# 1) 50 samples:
+
+df <- df.NO3_CQ %>% filter(n>=50)
+
+length(unique(df$site_no))
+
+# 2) over 20% of samples are above the 90% flow percentile:
+
+# determine the 90% flow for each site:
+
+df.Q.range <- df.NWIS.Q.for_NO3 %>% 
+  filter(site_no %in% df$site_no) %>% 
+  group_by(site_no) %>% 
+  dplyr::reframe(CI = quantile(X_00060_00003,c(.90), na.rm = T))
+
+# merge this with the CQ df:
+
+df.Q.range <- left_join(df, df.Q.range, by = 'site_no') 
+
+# filter to samples above the 90% threshold column, add column, and filter:
+
+df.Q.range <- df.Q.range%>% 
+  filter(X_00060_00003 >= CI) %>% 
+  mutate(n_90 = n()) %>% 
+  mutate(perc_90 = n_90/n) %>% 
+  distinct(site_no, perc_90) %>% 
+  arrange(perc_90) %>% 
+  filter(perc_90 >= .20)
+
+fun.map.DA(df.Q.range$site_no)
+
+df.NO3_CQ <- df.NO3_CQ %>% filter(site_no %in% df.Q.range$site_no)
+
+# so none of the sites in TP/TN have nitrate data in NWIS
+
+# lets see if just a single site is in WQP
+
+#
 
 
 
