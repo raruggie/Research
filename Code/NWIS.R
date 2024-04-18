@@ -478,38 +478,53 @@ df.TP_CQ<-df.TP_CQ.SP
 
 #### Restrictions on Data ####
 
-# 1) 50 samples:
+# 1) remove the 4-5 largest sites:
 
-df <- df.TP_CQ %>% filter(n>=50)
+x <- df.DA %>% rename(Name = 1,Group = 2)
 
-length(unique(df$site_no))
+fun.map.DA(x$Name, x)
 
-# 2) over 20% of samples are above the 90% flow percentile:
+x <- df.DA %>%
+  rename(Name = 1,Group = 2) %>% 
+  filter(Name %in% df.TP_CQ$site_no) %>% 
+  slice_min(Group, n=-4)
 
-# determine the 90% flow for each site:
+fun.map.DA(x$Name, x)
 
-df.Q.range <- df.NWIS.Q %>% 
-  filter(site_no %in% df$site_no) %>% 
-  group_by(site_no) %>% 
-  dplyr::reframe(CI = quantile(X_00060_00003,c(.90), na.rm = T))
+df.TP_CQ <- df.TP_CQ %>% filter(site_no %in% x$Name) 
 
-# merge this with the CQ df:
-
-df.Q.range <- left_join(df, df.Q.range, by = 'site_no') 
-
-# filter to samples above the 90% threshold column, add column, and filter:
-  
-df.Q.range <- df.Q.range%>% 
-  filter(X_00060_00003 >= CI) %>% 
-  mutate(n_90 = n()) %>% 
-  mutate(perc_90 = n_90/n) %>% 
-  distinct(site_no, perc_90) %>% 
-  arrange(perc_90) %>% 
-  filter(perc_90 >= .20)
-
-fun.map.DA(df.Q.range$site_no)
-
-df.TP_CQ <- df.TP_CQ %>% filter(site_no %in% df.Q.range$site_no)
+# # 1) 50 samples:
+# 
+# df <- df.TP_CQ %>% filter(n>=50)
+# 
+# length(unique(df$site_no))
+# 
+# # 2) over 20% of samples are above the 90% flow percentile:
+# 
+# # determine the 90% flow for each site:
+# 
+# df.Q.range <- df.NWIS.Q %>% 
+#   filter(site_no %in% df$site_no) %>% 
+#   group_by(site_no) %>% 
+#   dplyr::reframe(CI = quantile(X_00060_00003,c(.90), na.rm = T))
+# 
+# # merge this with the CQ df:
+# 
+# df.Q.range <- left_join(df, df.Q.range, by = 'site_no') 
+# 
+# # filter to samples above the 90% threshold column, add column, and filter:
+#   
+# df.Q.range <- df.Q.range%>% 
+#   filter(X_00060_00003 >= CI) %>% 
+#   mutate(n_90 = n()) %>% 
+#   mutate(perc_90 = n_90/n) %>% 
+#   distinct(site_no, perc_90) %>% 
+#   arrange(perc_90) %>% 
+#   filter(perc_90 >= .20)
+# 
+# fun.map.DA(df.Q.range$site_no)
+# 
+# df.TP_CQ <- df.TP_CQ %>% filter(site_no %in% df.Q.range$site_no)
 
 
 #
@@ -657,7 +672,7 @@ unit_conversion=28.3168*86400*(1/1000)*(1/1000)*(1/258.999) # mg/L * ft^3/sec * 
 # the second method will estimate C for everday of the sites POR, then an 
 # average annual yieldograph will be computed, and then summed up to get AANY
 
-#### ~ 1.1) OLS intercept, slope, AANY for single slope model: ####
+#### ~~ 1.1) OLS intercept, slope, AANY for single slope model: ####
 
 # slope and intercept:
 
@@ -691,7 +706,7 @@ df.Yield <- lapply(l.Yield.AAH, \(i) sum(i$mean_daily_yield, na.rm = T))%>%dplyr
 
 df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
 
-#### ~ 1.2) OLS intercept, slope, AANY for two slope model - threshold by median flow rate ####
+#### ~~ 1.2) OLS intercept, slope, AANY for two slope model - threshold by median flow rate ####
 
 # slope and intercept: create two df.OLS, one for pre and post median flow rate:
 
@@ -800,7 +815,7 @@ df.OLS[i,6:9]
 
 # looks good!
 
-#### ~ 1.3) OLS intercept, slope, AANY for two slope model - threshold by median concentration ####
+#### ~~ 1.3) OLS intercept, slope, AANY for two slope model - threshold by median concentration ####
 
 # not going to run since I cant figure out how to calculate AANY using median C...
 
@@ -915,7 +930,7 @@ df.OLS[i,6:9]
 # 
 # # I just realized that separation by C doesnt scale well in this workflow
 
-#### ~ 1.4) baseflow separation ####
+#### ~~ 1.4) baseflow separation ####
 
 library(grwat)
 
@@ -1053,7 +1068,7 @@ ggplot(df.RP%>%filter(Name == df.OLS$Name[i]), aes(x = log_Q, y = log_C,color = 
 
 df.OLS[i,12:17]
 
-#### ~ 1.5) advanced baseflow separation ####
+#### ~~ 1.5) advanced baseflow separation ####
 
 # add precip and temperature to df.NWIS.Q:
 
@@ -1185,10 +1200,70 @@ df.Yield <- bind_rows(l.AANY.simple) %>% pivot_longer(cols = everything(), names
 
 df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
  
+#### ~ 5) Flow Weighted Concentrations ####
+
+# two approaches here:
+
+# 1) using the individual CQ observations (Mean annual flow weighted concentration, MAFWC)
+# 2) predicting C for eacch day in the record (Flow weighted Average concentration, FWAC)
+
+# 1) MAFWC
+
+# estimate load for each CQ observations (i.e. C*Q), 
+# then divide each load observation by the average annual flow for the site
+# then take the mean of these weighted concentrations:
+
+# estimate average annual flow for each site:
+
+df.AAF <- df.Q %>% group_by(site_no, year) %>% summarize(AAF = mean(X_00060_00003, na.rm = T)) %>% 
+  ungroup() %>% 
+  group_by(site_no) %>% summarize(AAF = mean(AAF, na.rm = T))
+
+# calculate loads for observed CQ pairs:
+
+df.loads <- df.RP %>% mutate(load = C*Q)
+
+# merge AAF for each site with df.load:
+
+df.loads <- left_join(df.loads, df.AAF, by =c('Name'= 'site_no'))
+
+# divide each load observation by AAF:
+
+df.loads <- df.loads %>% mutate(MAFWC = load/AAF)
+
+# take mean weighted C for each site:
+
+df.MAFWC <- df.loads %>% group_by(Name) %>% summarize(MAFWC = mean(MAFWC, na.rm = T))
+
+# 2) FWAC
+
+# using l.pred.C from hydrosep
+# combine l.pred.C into single df:
+
+df.predC <- bind_rows(l.pred.C, .id = 'Name')
+
+# calcualte load for everyday in record:
+
+df.load <- df.predC %>% mutate(load = X_00060_00003*pred.C)
+
+# group by and summarize to estimate (annual) mean daily load for each site:
+
+df.load <- df.load %>% group_by(Name) %>% summarize(load = mean(load, na.rm = T))
+
+# merge AAF for each site with df.load:
+
+df.load <- left_join(df.load, df.AAF, by = c('Name'= 'site_no'))
+
+# divide loads by average annual flow:
+
+df.FWAC <- df.load %>% mutate(FWAC = load/AAF, .keep = 'unused')
+
 #### ~ Putting response variables together into single df: ####
 
 df.Response <- left_join(df.OLS, df.CV, by = 'Name')%>%
-  left_join(.,df.medC, by = 'Name')
+  left_join(.,df.medC, by = 'Name') %>% 
+  left_join(., df.MAFWC, by = 'Name') %>% 
+  left_join(., df.FWAC, by = 'Name')
 
 # look at distribution of response variables:
 
@@ -1210,7 +1285,9 @@ df.plot <- df.Response%>%select(-c(Name, CV_C, CV_Q))%>%
                           grepl("medQ", name) ~ "medQ",
                           grepl("CV_CQ", name) ~ "CV_CQ",
                           grepl("meanC", name) ~ "meanC",
-                          grepl("simple", name) ~ "simple"
+                          grepl("simple", name) ~ "simple",
+                          grepl("MAFWC", name) ~ "MAFWC",
+                          grepl("FWAC", name) ~ "FWAC"
                           ))%>%
   mutate(name2 = ifelse(grepl('method2',name), paste(name2, 'method2'), name2))
 
@@ -1409,9 +1486,9 @@ df.setup <- select(df.setup, -c(R_WATERNLCD06, HSG.coverage, R_MIXEDFORNLCD06, R
 
 names(df.setup)
 
-v.resp.cols <- 2:18
+v.resp.cols <- 2:20
 
-v.pred.cols <- 19:ncol(df.setup)
+v.pred.cols <- 21:ncol(df.setup)
 
 # look at correlation matrix of response and predictors:
 
@@ -1539,7 +1616,7 @@ names(df.setup)
 
 df.cor <- df.setup %>%
   corrr::correlate(method = 'spearman') %>%
-  corrr::focus(2:18)%>%
+  corrr::focus(2:20)%>%
   pivot_longer(cols= -term, names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
   mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
   mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
@@ -1580,9 +1657,32 @@ ggplot(df.cor.top10, aes(x=term, y=Spearman_Correlation, color=term))+
   # theme(axis.title.y=element_blank())+
   facet_wrap(~CQ_Parameter, ncol = 4,scales="free")
 
+# I also want to look at the relaitionship between mean c and MAFWC:
 
+x <- left_join(df.setup, df.DA, by = c('Name'='site_no')) %>% 
+  select(Name,meanC, MAFWC, FWAC, drain_area_va)
 
+p1 <- ggplot(x, aes(x = meanC, y = MAFWC))+
+  geom_point(aes(size = drain_area_va))+
+  geom_line(aes(x = meanC, y = meanC), color = 'red') +
+  geom_smooth(method = 'lm')+
+  scale_size_continuous(breaks=c(25, 250, 500, 1000, 1250, 2000, 5000))
 
+p2 <- ggplot(x, aes(x = meanC, y = FWAC))+
+  geom_point(aes(size = drain_area_va))+
+  geom_line(aes(x = meanC, y = meanC), color = 'red') +
+  geom_smooth(method = 'lm')+
+  scale_size_continuous(breaks=c(25, 250, 500, 1000, 1250, 2000, 5000))
+
+p3 <- ggplot(x, aes(x = MAFWC, y = FWAC))+
+  geom_point(aes(size = drain_area_va))+
+  geom_line(aes(x = MAFWC, y = MAFWC), color = 'red') +
+  geom_smooth(method = 'lm')+
+  scale_size_continuous(breaks=c(25, 250, 500, 1000, 1250, 2000, 5000))
+
+ggarrange(p1,p2,p3, common.legend = T)
+
+#
 
 
 
@@ -1820,16 +1920,18 @@ df.importance <- as.data.frame(pc3a$rotation) %>% arrange(PC1, desc = F)
 
 
 
-#### Hypothesis testing ####
+#### ~ Set up list to export for hypothesis testing ####
 
 # set up list of dataframes for response variables and predictors
 
 # OLS slope
 # OLS slope stormflow samples
+# MAFWC
+# FWAC
 # AANY.hydrosep
 # medC
 
-resp.vars <- c("OLS.Slope.1s", "OLS.Slope.2s_hydrosep_post", "OLS.AANY.2s.hydrosep.method2", "medC")
+resp.vars <- c("OLS.Slope.1s", "OLS.Slope.2s_hydrosep_post", "MAFWC", 'FWAC', "OLS.AANY.2s.hydrosep.method2", "medC")
 
 # One last check of the site restrictions:
 # I want to make sure that at least 25 samples make up the stormflow segmenet:
@@ -1858,6 +1960,42 @@ ggplot(df.RP, aes(x = log_Q, y = log_C, color = Q_type)) +
 # set up dataframes for the 4 response variables::
 
 l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% filter(Name %in% df.g$Name) %>% select(i, v.pred.cols) %>% rename(term = 1)) %>% purrr::set_names(resp.vars)
+
+# save:
+
+save(l.resp.allpred, file = 'Processed_Data/TP.l.resp.allpred.Rdata')
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Hypothesis testing ####
 
 # lets look at the distributions of the response variables:
 

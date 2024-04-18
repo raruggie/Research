@@ -5,39 +5,7 @@ gc()
 
 ####################### Load packages #######################
 
-library(climateR)
-library(ggpubr)
-library(ggnewscale)
-library(ggforce)
-library(readxl)
-library(MASS)
-library(car)
-library(CropScapeR)
-library(FedData)
-library(streamstats)
-library(dataRetrieval)
-library(sf)
-library(raster)
-library(terra)
-library(kableExtra)
-library(sfheaders)
-library(mapview)
-library(broom)
-library(ggsignif)
-library(ggpmisc)
-library(segmented)
-library(readxl)
-library(tmap)
-library(readxl)
-library(zyp)
-library(corrr)
-library(tidyverse)
-
-sf_use_s2(TRUE) # for sf
-
-setTimeout(1000) # for streamstats api
-
-meters_to_miles = 1/1609.334
+# just load the packages section in NWIS.R
 
 ####################### Functions #######################
 
@@ -98,7 +66,7 @@ df.NWIS.Q_sites <- read.csv("Raw_Data/df.NWIS.Q_sites.csv", colClasses = c(site_
 df.NWIS.Q_sites<-df.NWIS.Q_sites%>%
   group_by(site_no)%>%
   slice(which.max(count_nu))%>%
-  rename(latitude = dec_lat_va, longitude = dec_long_va, nflowdays = count_nu, begin_date_flow = begin_date, end_date_flow = end_date)%>%
+  dplyr::rename(latitude = dec_lat_va, longitude = dec_long_va, nflowdays = count_nu, begin_date_flow = begin_date, end_date_flow = end_date)%>%
   mutate(latitude = as.numeric(latitude), longitude = as.numeric(longitude))%>%
   filter(nflowdays>=20)
 
@@ -419,50 +387,56 @@ df.TN_CQ<-df.TN_CQ.SP
 
 #### Restrictions on Data ####
 
-# 1) 50 samples:
+# 1) remove the 4-5 largest sites:
 
-df <- df.TN_CQ %>% filter(n>=50)
+x <- df.DA %>% 
+  rename(Name = 1,Group = 2) %>% 
+  filter(Name %in% df.TN_CQ$site_no)
 
-length(unique(df$site_no))
+fun.map.DA(x$Name, x)
 
-# 11?!?! 
+x <- x %>% 
+  slice_min(Group, n=-2)
 
-# 2) over 20% of samples are above the 90% flow percentile:
+fun.map.DA(x$Name, x)
 
-# determine the 90% flow for each site:
+df.TN_CQ <- df.TN_CQ %>% filter(site_no %in% x$Name) 
 
-df.Q.range <- df.NWIS.Q.for_TN %>% 
-  filter(site_no %in% df$site_no) %>% 
-  group_by(site_no) %>% 
-  dplyr::reframe(CI = quantile(X_00060_00003,c(.90), na.rm = T))
+# # 1) 50 samples:
+# 
+# df <- df.TN_CQ %>% filter(n>=50)
+# 
+# length(unique(df$site_no))
+# 
+# # 11?!?! 
+# 
+# # 2) over 20% of samples are above the 90% flow percentile:
+# 
+# # determine the 90% flow for each site:
+# 
+# df.Q.range <- df.NWIS.Q.for_TN %>% 
+#   filter(site_no %in% df$site_no) %>% 
+#   group_by(site_no) %>% 
+#   dplyr::reframe(CI = quantile(X_00060_00003,c(.90), na.rm = T))
+# 
+# # merge this with the CQ df:
+# 
+# df.Q.range <- left_join(df, df.Q.range, by = 'site_no') 
+# 
+# # filter to samples above the 90% threshold column, add column, and filter:
+# 
+# df.Q.range <- df.Q.range%>% 
+#   filter(X_00060_00003 >= CI) %>% 
+#   mutate(n_90 = n()) %>% 
+#   mutate(perc_90 = n_90/n) %>% 
+#   distinct(site_no, perc_90) %>% 
+#   arrange(perc_90) %>% 
+#   filter(perc_90 >= .20)
+# 
+# fun.map.DA(df.Q.range$site_no)
+# 
+# df.TN_CQ <- df.TN_CQ %>% filter(site_no %in% df.Q.range$site_no)
 
-# merge this with the CQ df:
-
-df.Q.range <- left_join(df, df.Q.range, by = 'site_no') 
-
-# filter to samples above the 90% threshold column, add column, and filter:
-
-df.Q.range <- df.Q.range%>% 
-  filter(X_00060_00003 >= CI) %>% 
-  mutate(n_90 = n()) %>% 
-  mutate(perc_90 = n_90/n) %>% 
-  distinct(site_no, perc_90) %>% 
-  arrange(perc_90) %>% 
-  filter(perc_90 >= .20)
-
-fun.map.DA(df.Q.range$site_no)
-
-df.TN_CQ <- df.TN_CQ %>% filter(site_no %in% df.Q.range$site_no)
-
-
-#
-
-# hold up... only 8 sites... I am going to stop here and look at WQP to see if there is any more 
-# data there...
-
-# there isnt any... so lets see if we can replicate these 8 sites across TP, SRP, TN, and NO3
-
-# cant replicate across NO3, but TP and SRP should be good to go for these 8
 
 
 
@@ -509,6 +483,37 @@ df_Seg<-left_join(df_Seg, temp%>%select(site, n_sample_rank), by = 'site')%>%
 df.Seg <- df_Seg
 
 #
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #### Setting up Response Variables ####
@@ -1082,10 +1087,70 @@ df.Yield <- bind_rows(l.AANY.simple) %>% pivot_longer(cols = everything(), names
 
 df.OLS<-left_join(df.OLS, df.Yield, by = 'Name')
 
+#### ~ 5) Flow Weighted Concentrations ####
+
+# two approaches here:
+
+# 1) using the individual CQ observations (Mean annual flow weighted concentration, MAFWC)
+# 2) predicting C for eacch day in the record (Flow weighted Average concentration, FWAC)
+
+# 1) MAFWC
+
+# estimate load for each CQ observations (i.e. C*Q), 
+# then divide each load observation by the average annual flow for the site
+# then take the mean of these weighted concentrations:
+
+# estimate average annual flow for each site:
+
+df.AAF <- df.Q %>% group_by(site_no, year) %>% summarize(AAF = mean(X_00060_00003, na.rm = T)) %>% 
+  ungroup() %>% 
+  group_by(site_no) %>% summarize(AAF = mean(AAF, na.rm = T))
+
+# calculate loads for observed CQ pairs:
+
+df.loads <- df.RP %>% mutate(load = C*Q)
+
+# merge AAF for each site with df.load:
+
+df.loads <- left_join(df.loads, df.AAF, by =c('Name'= 'site_no'))
+
+# divide each load observation by AAF:
+
+df.loads <- df.loads %>% mutate(MAFWC = load/AAF)
+
+# take mean weighted C for each site:
+
+df.MAFWC <- df.loads %>% group_by(Name) %>% summarize(MAFWC = mean(MAFWC, na.rm = T))
+
+# 2) FWAC
+
+# using l.pred.C from hydrosep
+# combine l.pred.C into single df:
+
+df.predC <- bind_rows(l.pred.C, .id = 'Name')
+
+# calcualte load for everyday in record:
+
+df.load <- df.predC %>% mutate(load = X_00060_00003*pred.C)
+
+# group by and summarize to estimate (annual) mean daily load for each site:
+
+df.load <- df.load %>% group_by(Name) %>% summarize(load = mean(load, na.rm = T))
+
+# merge AAF for each site with df.load:
+
+df.load <- left_join(df.load, df.AAF, by = c('Name'= 'site_no'))
+
+# divide loads by average annual flow:
+
+df.FWAC <- df.load %>% mutate(FWAC = load/AAF, .keep = 'unused')
+
 #### ~ Putting response variables together into single df: ####
 
 df.Response <- left_join(df.OLS, df.CV, by = 'Name')%>%
-  left_join(.,df.medC, by = 'Name')
+  left_join(.,df.medC, by = 'Name') %>% 
+  left_join(., df.MAFWC, by = 'Name') %>% 
+  left_join(., df.FWAC, by = 'Name')
 
 # look at distribution of response variables:
 
@@ -1107,7 +1172,9 @@ df.plot <- df.Response%>%select(-c(Name, CV_C, CV_Q))%>%
                            grepl("medQ", name) ~ "medQ",
                            grepl("CV_CQ", name) ~ "CV_CQ",
                            grepl("meanC", name) ~ "meanC",
-                           grepl("simple", name) ~ "simple"
+                           grepl("simple", name) ~ "simple",
+                           grepl("MAFWC", name) ~ "MAFWC",
+                           grepl("FWAC", name) ~ "FWAC"
   ))%>%
   mutate(name2 = ifelse(grepl('method2',name), paste(name2, 'method2'), name2))
 
