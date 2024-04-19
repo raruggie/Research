@@ -1889,6 +1889,7 @@ fviz_pca_var(pc3a,
 
 df.importance <- as.data.frame(pc3a$rotation) %>% arrange(PC1, desc = F)
 
+#
 
 
 
@@ -1919,8 +1920,7 @@ df.importance <- as.data.frame(pc3a$rotation) %>% arrange(PC1, desc = F)
 
 
 
-
-#### ~ Set up list to export for hypothesis testing ####
+#### Set up list to export for hypothesis testing ####
 
 # set up list of dataframes for response variables and predictors
 

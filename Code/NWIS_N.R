@@ -1351,9 +1351,9 @@ df.setup <- select(df.setup, -c(R_WATERNLCD06, HSG.coverage, R_MIXEDFORNLCD06, R
 
 names(df.setup)
 
-v.resp.cols <- 2:18
+v.resp.cols <- 2:20
 
-v.pred.cols <- 19:ncol(df.setup)
+v.pred.cols <- 21:ncol(df.setup)
 
 # look at correlation matrix of response and predictors:
 
@@ -1481,7 +1481,7 @@ names(df.setup)
 
 df.cor <- df.setup %>%
   corrr::correlate(method = 'spearman') %>%
-  corrr::focus(2:18)%>%
+  corrr::focus(2:20)%>%
   pivot_longer(cols= -term, names_to = 'CQ_Parameter', values_to = 'Spearman_Correlation')%>%
   mutate(p_val = round(2*pt(-abs(Spearman_Correlation*sqrt((n_sites-2)/(1-(Spearman_Correlation)^2))), n_sites-2),2))%>%
   mutate(sig_0.05 = ifelse(p_val <= 0.05, 'sig', 'not'))%>%
@@ -1521,6 +1521,31 @@ ggplot(df.cor.top10, aes(x=term, y=Spearman_Correlation, color=term))+
   geom_bar(stat = "identity")+
   # theme(axis.title.y=element_blank())+
   facet_wrap(~CQ_Parameter, ncol = 4,scales="free")
+
+# I also want to look at the relaitionship between mean c and MAFWC:
+
+x <- left_join(df.setup, df.DA, by = c('Name'='site_no')) %>% 
+  select(Name,meanC, MAFWC, FWAC, drain_area_va)
+
+p1 <- ggplot(x, aes(x = meanC, y = MAFWC))+
+  geom_point(aes(size = drain_area_va))+
+  geom_line(aes(x = meanC, y = meanC), color = 'red') +
+  geom_smooth(method = 'lm')+
+  scale_size_continuous(breaks=c(25, 250, 500, 1000, 1250, 2000, 5000))
+
+p2 <- ggplot(x, aes(x = meanC, y = FWAC))+
+  geom_point(aes(size = drain_area_va))+
+  geom_line(aes(x = meanC, y = meanC), color = 'red') +
+  geom_smooth(method = 'lm')+
+  scale_size_continuous(breaks=c(25, 250, 500, 1000, 1250, 2000, 5000))
+
+p3 <- ggplot(x, aes(x = MAFWC, y = FWAC))+
+  geom_point(aes(size = drain_area_va))+
+  geom_line(aes(x = MAFWC, y = MAFWC), color = 'red') +
+  geom_smooth(method = 'lm')+
+  scale_size_continuous(breaks=c(25, 250, 500, 1000, 1250, 2000, 5000))
+
+ggarrange(p1,p2,p3, common.legend = T)
 
 #
 
@@ -1773,20 +1798,18 @@ df.importance <- as.data.frame(pc3a$rotation) %>% arrange(PC1, desc = F)
 
 
 
-
-
-
-
-#### Hypothesis testing ####
+#### Set up list to export for hypothesis testing ####
 
 # set up list of dataframes for response variables and predictors
 
 # OLS slope
 # OLS slope stormflow samples
+# MAFWC
+# FWAC
 # AANY.hydrosep
 # medC
 
-resp.vars <- c("OLS.Slope.1s", "OLS.Slope.2s_hydrosep_post", "OLS.AANY.2s.hydrosep.method2", "medC")
+resp.vars <- c("OLS.Slope.1s", "OLS.Slope.2s_hydrosep_post", "MAFWC", 'FWAC', "OLS.AANY.2s.hydrosep.method2", "medC")
 
 # One last check of the site restrictions:
 # I want to make sure that at least 25 samples make up the stormflow segmenet:
@@ -1815,6 +1838,50 @@ ggplot(df.RP, aes(x = log_Q, y = log_C, color = Q_type)) +
 # set up dataframes for the 4 response variables::
 
 l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% filter(Name %in% df.g$Name) %>% select(i, v.pred.cols) %>% rename(term = 1)) %>% purrr::set_names(resp.vars)
+
+# save:
+
+save(l.resp.allpred, file = 'Processed_Data/TN.l.resp.allpred.Rdata')
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Hypothesis testing ####
 
 # lets look at the distributions of the response variables:
 
