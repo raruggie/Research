@@ -373,7 +373,7 @@ p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)),
 # SRP/TP: remove HSG D and FRAGUN:
 
 l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')],
-                    TN = pred.vars[! pred.vars  %in% c('WWTP.fraction', 'FRAGUN')],
+                    TN = pred.vars[! pred.vars  %in% c('CAFO_count', 'FRAGUN')],
                     TP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')])
 
 # split df.load by consit:
@@ -382,7 +382,7 @@ l.load <- split(df.load, f=df.load$Consit)
 
 # select the two term and just these predictors for each consit:
 
-l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[1]])) # sticking with result 1 for now...
+l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
 
 # split this list into list ot list for each Term:
 
@@ -411,9 +411,9 @@ l.VIF <- lapply(l.lm, vif)
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
   pivot_longer(cols = -Term)
 
-# ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
-#   geom_point()+
-#   geom_line()
+ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
+  geom_point()+
+  geom_line()
 
 # save l.load and l.lm as l.load.H2 and l.lm.H2:
 
@@ -472,7 +472,7 @@ p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)),
 # remove HSG_D, FRAGUN, R_PLANT, R_DEV:
 
 l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")],
-                    TN = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")],
+                    TN = pred.vars[! pred.vars  %in% c('FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")],
                     TP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")])
 
 # split df.load by consit:
@@ -510,9 +510,9 @@ l.VIF <- lapply(l.lm, vif)
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
   pivot_longer(cols = -Term)
 
-# ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
-#   geom_point()+
-#   geom_line()
+ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
+  geom_point()+
+  geom_line()
 
 # save l.load and l.lm as l.load.H3 and l.lm.H3:
 
@@ -587,43 +587,30 @@ l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H3.R2[[i]])
 
 #### H3a: Include the WP ag/dev into H3 ####
 
-# set up list:
+l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')],
+                    TN = pred.vars[! pred.vars  %in% c('FRAGUN')],
+                    TP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')])
+l.load <- split(df.load, f=df.load$Consit)
+l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
+l.load <- lapply(l.load, \(i) split(i, f=i$Term))
+l.load <- purrr::flatten(l.load)
+l.load <- lapply(l.load, \(i) i %>% select(-Term))
+l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H3a.html")
+l.VIF <- lapply(l.lm, vif)
+df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
+  pivot_longer(cols = -Term)
+ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
+  geom_point()+
+  geom_line()
 
-pred.vars <- c('WWTP.fraction', 'CAFO_count', 'R_PLANTNLCD06', "R_DEVNLCD06", "R_RIP100_PLANT", "R_RIP100_DEV")
-l.load <- df.load %>% select(Term, term, pred.vars)
-l.load <- split(l.load[-1], f = l.load$Term)
-
-# build lm:
-
-l.lm.H3a <- lapply(l.load, \(i) lm(term ~ ., data = i))
-
-# make comparison table:
-
-tab_model(l.lm.H3a, dv.labels = names(l.lm.H2), title = paste('Comparison of MLR models'), file="H3a.html")
-
-# extract adj.R2:
-
-l.H3a.R2 <- lapply(l.lm.H3a, \(i) summary(i)$adj.r.squared)
-
-# compare with H2:
+l.H3a.R2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
 
 l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H3a.R2[[i]])
 
-# lets look at VIF for these models:
-
-l.VIF <- lapply(l.lm.H3a, vif)
-
-df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
-  pivot_longer(cols = -Term)
-
-# ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
-#   geom_point()+
-#   geom_line()
+l.compare.R2
 
 #
-
-
-
 
 
 
@@ -734,40 +721,29 @@ p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)),
                                       insig = "blank",
                                       title = names(l.plot)[i]))
 
-# ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
+ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
 
 # the difference with this smaller site list is that WWTP and CAFO have stronger correlation with each other across all three consits
 
-# lets try two different things: 
+# just use these (i.e. remove HSG.D, WWTP, FRAGUN):
 
-# 1) use same predictor set as H2 with no restricitons (i.e. WWTP and CAFO)
-# 2) remove WWTP
-
-pred.vars.1 <- c('WWTP.fraction', 'CAFO_count', 'R_PLANTNLCD06', "R_DEVNLCD06")
-pred.vars.2 <- c('WWTP.fraction', 'R_PLANTNLCD06', "R_DEVNLCD06")
+pred.vars <- c('CAFO_count', 'R_PLANTNLCD06', "R_DEVNLCD06")
 
 # split df.load by consit: 
 # *** Note using df.load.restrict.2 ****
 
 l.load <- split(df.load.restrict.2, f=df.load.restrict.2$Term)
-l.load <- lapply(l.load, \(i) i %>% select(Term, term, pred.vars.2)) # sticking with result 1 for now...
+l.load <- lapply(l.load, \(i) i %>% select(Term, term, pred.vars)) # sticking with result 1 for now...
 l.load <- lapply(l.load, \(i) i %>% select(-Term))
 l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H2.restriction.2.v2.html")
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H2.restriction.2.html")
 l.VIF <- lapply(l.lm, vif)
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
   pivot_longer(cols = -Term)
-
 ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
   geom_point()+
   geom_line()+
   theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
-
-#
-
-# looking at the tab models for v1 and v2,
-# adjR2 is better for v2 across the models,
-# and WP ag is significant in one of the TN models (compared to none for v2)
 
 # compare H2 with restriction 2 to H2:
 
@@ -855,8 +831,6 @@ ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
   geom_line()+
   theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
 
-#
-
 # compare H2 with restriction 2 to H2:
 
 l.H2.restrict.3.R2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
@@ -866,6 +840,410 @@ l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H2.restrict.3.R2[
 l.compare.R2
 
 #
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### H3 with restriction 2 ####
+
+# H3: Incorporating measures of the fraction of developed land in close proximity to streams (i.e. land use within stream buffers) improves prediction of watershed variations in nutrient load
+
+# the predictor variables for this section are:
+
+pred.vars <- c('HSG_D', 'WWTP.fraction', 'CAFO_count',  'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06", "R_RIP100_PLANT", "R_RIP100_DEV")
+
+# make correlation matrix plot for each consit:
+
+l.plot <- df.load.restrict.2 %>% group_by(Consit) %>% distinct(Name, .keep_all = T) %>% ungroup() %>%  split(., f = .$Consit)
+
+p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)), 
+                                      type = "lower",
+                                      outline.col = "white",
+                                      method = 'circle',
+                                      lab = TRUE,
+                                      p.mat = cor_pmat(l.plot[[i]] %>% select(pred.vars)),
+                                      insig = "blank",
+                                      title = names(l.plot)[i]))
+
+# ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
+
+# remove HSG_D, FRAGUN, R_PLANT, R_DEV:
+
+l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")],
+                    TN = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")],
+                    TP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")])
+
+# split df.load by consit:
+
+l.load <- split(df.load.restrict.2, f=df.load.restrict.2$Consit)
+
+# select the two term and just these predictors for each consit:
+
+l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
+
+# split this list into list ot list for each Term:
+
+l.load <- lapply(l.load, \(i) split(i, f=i$Term))
+
+# flatten list of list into just list of dfs:
+
+l.load <- purrr::flatten(l.load)
+
+# drop Term column from each df:
+
+l.load <- lapply(l.load, \(i) i %>% select(-Term))
+
+# build lm to predict:
+
+l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
+
+# visualize model comparisons:
+
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H3.restriction.2.html")
+
+# lets look at VIF for these models:
+
+l.VIF <- lapply(l.lm, vif)
+
+df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
+  pivot_longer(cols = -Term)
+
+ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
+  geom_point()+
+  geom_line()
+
+# save l.load and l.lm as l.load.H3 and l.lm.H3:
+
+l.load.H3 <- l.load
+
+l.lm.H3 <- l.lm
+
+# compare adjR2 with H2 w/ R2:
+
+l.H3.restrict.2.R2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
+
+l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.restrict.2.R2[[i]]-l.H3.restrict.2.R2[[i]])
+
+l.compare.R2
+
+# compare adjR2 with H2 w/ R1:
+
+l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H3.restrict.2.R2[[i]])
+
+l.compare.R2
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### H3 with restriction 3 ####
+
+# H3: Incorporating measures of the fraction of developed land in close proximity to streams (i.e. land use within stream buffers) improves prediction of watershed variations in nutrient load
+
+# the predictor variables for this section are:
+
+pred.vars <- c('HSG_D', 'WWTP.fraction', 'CAFO_count',  'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06", "R_RIP100_PLANT", "R_RIP100_DEV")
+
+# make correlation matrix plot for each consit:
+
+l.plot <- df.load.restrict.3 %>% group_by(Consit) %>% distinct(Name, .keep_all = T) %>% ungroup() %>%  split(., f = .$Consit)
+
+p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)), 
+                                      type = "lower",
+                                      outline.col = "white",
+                                      method = 'circle',
+                                      lab = TRUE,
+                                      p.mat = cor_pmat(l.plot[[i]] %>% select(pred.vars)),
+                                      insig = "blank",
+                                      title = names(l.plot)[i]))
+
+ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
+
+# remove HSG_D, FRAGUN, R_PLANT, R_DEV:
+
+l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'CAFO_count', 'R_PLANTNLCD06', "R_DEVNLCD06")],
+                    TN = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'CAFO_count', 'R_PLANTNLCD06', "R_DEVNLCD06")],
+                    TP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'CAFO_count', 'R_PLANTNLCD06', "R_DEVNLCD06")])
+
+# split df.load by consit:
+
+l.load <- split(df.load.restrict.3, f=df.load.restrict.3$Consit)
+
+# select the two term and just these predictors for each consit:
+
+l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
+
+# split this list into list ot list for each Term:
+
+l.load <- lapply(l.load, \(i) split(i, f=i$Term))
+
+# flatten list of list into just list of dfs:
+
+l.load <- purrr::flatten(l.load)
+
+# drop Term column from each df:
+
+l.load <- lapply(l.load, \(i) i %>% select(-Term))
+
+# build lm to predict:
+
+l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
+
+# visualize model comparisons:
+
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H3.restriction.3.html")
+
+# lets look at VIF for these models:
+
+l.VIF <- lapply(l.lm, vif)
+
+df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
+  pivot_longer(cols = -Term)
+
+ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
+  geom_point()+
+  geom_line()
+
+# compare adjR2 with H2 w/ R3:
+
+l.H3.restrict.3.R2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
+
+l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.restrict.3.R2[[i]]-l.H3.restrict.3.R2[[i]])
+
+l.compare.R2
+
+# compare adjR2 with H2 w/ R1:
+
+l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H3.restrict.3.R2[[i]])
+
+l.compare.R2
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Set up df for overlapping sites across TP, TN, SRP ####
+
+# for R1, filter SRP and TP sites down to just TN sites:
+
+sites.to.keep <- unique((df.load %>% filter(Consit == 'TN'))$Name)
+
+df.load.overlap <- df.load %>% filter(Name %in% sites.to.keep)
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### H2 with overlapping sites + R1 ####
+
+# H2 workflow:
+
+pred.vars <- c('HSG_D', 'WWTP.fraction', 'CAFO_count', 'R_PLANTNLCD06', "R_DEVNLCD06", 'FRAGUN')
+l.plot <- df.load.overlap %>% group_by(Consit) %>% distinct(Name, .keep_all = T) %>% ungroup() %>%  split(., f = .$Consit)
+p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)), 
+                                      type = "lower",
+                                      outline.col = "white",
+                                      method = 'circle',
+                                      lab = TRUE,
+                                      p.mat = cor_pmat(l.plot[[i]] %>% select(pred.vars)),
+                                      insig = "blank",
+                                      title = names(l.plot)[i]))
+ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
+l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c( 'FRAGUN')],
+                    TN = pred.vars[! pred.vars  %in% c('FRAGUN')],
+                    TP = pred.vars[! pred.vars  %in% c('FRAGUN')])
+l.load <- split(df.load.overlap, f=df.load.overlap$Consit)
+l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
+l.load <- lapply(l.load, \(i) split(i, f=i$Term))
+l.load <- purrr::flatten(l.load)
+l.load <- lapply(l.load, \(i) i %>% select(-Term))
+l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H2.overlapping.sites.html")
+l.VIF <- lapply(l.lm, vif)
+df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% pivot_longer(cols = -Term)
+ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+geom_point()+geom_line()
+
+# compare adjR2 with H2 w/ R1:
+
+l.H2.overlap.R2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
+
+l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H2.overlap.R2[[i]])
+
+l.compare.R2
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### H3 with overlapping sites + R1 ####
+
+# H3 workflow:
+
+pred.vars <- c('HSG_D', 'WWTP.fraction', 'CAFO_count',  'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06", "R_RIP100_PLANT", "R_RIP100_DEV")
+l.plot <- df.load.overlap %>% group_by(Consit) %>% distinct(Name, .keep_all = T) %>% ungroup() %>%  split(., f = .$Consit)
+p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)), 
+                                      type = "lower",
+                                      outline.col = "white",
+                                      method = 'circle',
+                                      lab = TRUE,
+                                      p.mat = cor_pmat(l.plot[[i]] %>% select(pred.vars)),
+                                      insig = "blank",
+                                      title = names(l.plot)[i]))
+ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
+l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")],
+                    TN = pred.vars[! pred.vars  %in% c('FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")],
+                    TP = pred.vars[! pred.vars  %in% c('FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")])
+l.load <- split(df.load.overlap, f=df.load.overlap$Consit)
+l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
+l.load <- lapply(l.load, \(i) split(i, f=i$Term))
+l.load <- purrr::flatten(l.load)
+l.load <- lapply(l.load, \(i) i %>% select(-Term))
+l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H3.overlapping.sites.html")
+l.VIF <- lapply(l.lm, vif)
+df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% pivot_longer(cols = -Term)
+ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+geom_point()+geom_line()
+
+# compare with H2 :
+
+l.H3.overlapping.R2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
+
+l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H3.overlapping.R2[[i]])
+
+l.compare.R2
+
+
+
+
+
+
+
+
 
 
 
