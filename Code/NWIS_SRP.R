@@ -382,41 +382,47 @@ fun.map.DA(x$Name, x)
 
 df.SRP_CQ <- df.SRP_CQ %>% filter(site_no %in% x$Name) 
 
-# # 1) 50 samples:
-# 
-# df <- df.TN_CQ %>% filter(n>=50)
-# 
-# length(unique(df$site_no))
-# 
-# # 11?!?! 
-# 
-# # 2) over 20% of samples are above the 90% flow percentile:
-# 
-# # determine the 90% flow for each site:
-# 
-# df.Q.range <- df.NWIS.Q.for_TN %>% 
-#   filter(site_no %in% df$site_no) %>% 
-#   group_by(site_no) %>% 
-#   dplyr::reframe(CI = quantile(X_00060_00003,c(.90), na.rm = T))
-# 
-# # merge this with the CQ df:
-# 
-# df.Q.range <- left_join(df, df.Q.range, by = 'site_no') 
-# 
-# # filter to samples above the 90% threshold column, add column, and filter:
-# 
-# df.Q.range <- df.Q.range%>% 
-#   filter(X_00060_00003 >= CI) %>% 
-#   mutate(n_90 = n()) %>% 
-#   mutate(perc_90 = n_90/n) %>% 
-#   distinct(site_no, perc_90) %>% 
-#   arrange(perc_90) %>% 
-#   filter(perc_90 >= .20)
-# 
-# fun.map.DA(df.Q.range$site_no)
-# 
-# df.TN_CQ <- df.TN_CQ %>% filter(site_no %in% df.Q.range$site_no)
+# 2) 50 samples:
 
+df.2 <- df.SRP_CQ %>% filter(n>=50)
+
+length(unique(df.2$site_no))
+
+# 3) over 20% of samples are above the 90% flow percentile:
+
+# determine the 90% flow for each site:
+
+df.Q.range <- df.NWIS.Q.for_SRP %>%
+  filter(site_no %in% df.2$site_no) %>%
+  group_by(site_no) %>%
+  dplyr::reframe(CI = quantile(X_00060_00003,c(.90), na.rm = T))
+
+# merge this with the CQ df:
+
+df.Q.range <- left_join(df.2, df.Q.range, by = 'site_no')
+
+# filter to samples above the 90% threshold column, add column, and filter:
+
+df.Q.range <- df.Q.range%>%
+  filter(X_00060_00003 >= CI) %>%
+  mutate(n_90 = n()) %>%
+  mutate(perc_90 = n_90/n) %>%
+  distinct(site_no, perc_90) %>%
+  arrange(perc_90) %>%
+  filter(perc_90 >= .20)
+
+fun.map.DA(df.Q.range$site_no)
+
+df.3 <- df.SRP_CQ %>% filter(site_no %in% df.Q.range$site_no)
+
+length(unique(df.3$site_no))
+
+# save site lists for df.2 and df.3:
+
+save(df.2, file = 'Processed_Data/SRP.df.2.sites.Rdata')
+save(df.3, file = 'Processed_Data/SRP.df.3.sites.Rdata')
+
+#
 
 
 
