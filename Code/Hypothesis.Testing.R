@@ -306,13 +306,36 @@ names(l.slope) <- c('TP.overal', 'TP.storm', 'TN.overal', 'TN.storm', 'SRP.overa
 
 df.slope <- bind_rows(l.slope, .id = 'Term')
 
-# make ggplot:
+# scatterplot:
 
-# ggplot(df.slope, aes(x = R_FORESTNLCD06, y = term))+
-#   geom_point()+
-#   geom_smooth(method = 'lm')+
-#   facet_wrap(~Term, ncol = 2)+
-#   stat_poly_eq(use_label(c("eq", "R2", 'p.value')))
+ggplot(df.slope, aes(x = R_FORESTNLCD06, y = term))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  facet_wrap(~Term, ncol = 2)+
+  stat_poly_eq(use_label(c("eq", "R2", 'p.value')))
+
+ggplot(df.slope, aes(x=Term, y=term)) +
+  geom_boxplot() +
+  geom_point(position=position_jitterdodge(), aes(color = R_FORESTNLCD06, size = R_FORESTNLCD06))+
+  # scale_colour_gradient(
+  #   low = 'red',
+  #   high = 'blue',
+  #   space = "Lab",
+  #   na.value = "grey50",
+  #   guide = "colourbar",
+  #   aesthetics = "colour"
+  # )+
+  geom_hline(yintercept=0, linetype="dashed", 
+             color = "green", size=2)+
+  labs(x = 'Slope Term', y = 'Slope Value',
+       color = 'WP Forest',
+       size = 'WP Forest')+
+  scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
+  scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
+                         high = 'blue',) +
+  guides(color= guide_legend(), size=guide_legend())
+
+
 
 #
 
@@ -367,14 +390,14 @@ p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)),
            insig = "blank",
            title = names(l.plot)[i]))
 
-# ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
+ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
 
 # TN: remove WWTP.fraction and FRAGUN
 # SRP/TP: remove HSG D and FRAGUN:
 
-l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')],
-                    TN = pred.vars[! pred.vars  %in% c('CAFO_count', 'FRAGUN')],
-                    TP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')])
+l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('FRAGUN')],
+                    TN = pred.vars[! pred.vars  %in% c('FRAGUN')],
+                    TP = pred.vars[! pred.vars  %in% c('FRAGUN')])
 
 # split df.load by consit:
 
@@ -402,7 +425,7 @@ l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
 
 # visualize model comparisons:
 
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H2.html")
+tab_model(l.lm, show.p = F, show.ci = F,show.aic = T, p.style = 'scientific_stars', p.threshold = c(0.10, 0.05, 0.01), dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H2.r1.html")
 
 # lets look at VIF for these models:
 
@@ -501,7 +524,7 @@ l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
 
 # visualize model comparisons:
 
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H3.html")
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H3.r1.html")
 
 # lets look at VIF for these models:
 
@@ -520,16 +543,14 @@ l.load.H3 <- l.load
 
 l.lm.H3 <- l.lm
 
-#
-
 # RP improved Model adjR2:
 
-l.H2.R2 <- lapply(l.lm.H2, \(i) summary(i)$adj.r.squared)
-l.H3.R2 <- lapply(l.lm.H3, \(i) summary(i)$adj.r.squared)
+l.adjR2.H2.r1 <- lapply(l.lm.H2, \(i) summary(i)$adj.r.squared)
+l.adjR2.H3.r1 <- lapply(l.lm.H3, \(i) summary(i)$adj.r.squared)
 
-l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H3.R2[[i]])
+l.compare.adjR2 <- sapply(seq_along(l.adjR2.H2.r1), \(i) l.adjR2.H2.r1[[i]]-l.adjR2.H3.r1[[i]])
 
-l.compare.R2
+l.compare.adjR2
 
 #
 
@@ -567,12 +588,12 @@ l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')],
                     TN = pred.vars[! pred.vars  %in% c('FRAGUN')],
                     TP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')])
 l.load <- split(df.load, f=df.load$Consit)
-l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
+l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, HSG_D,R_PLANTNLCD06, R_RIP100_PLANT))
 l.load <- lapply(l.load, \(i) split(i, f=i$Term))
 l.load <- purrr::flatten(l.load)
 l.load <- lapply(l.load, \(i) i %>% select(-Term))
 l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H3a.html")
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H3a.r1.html")
 l.VIF <- lapply(l.lm, vif)
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
   pivot_longer(cols = -Term)
@@ -582,11 +603,11 @@ ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
 
 # RP improved model adjR2:
 
-l.H3a.R2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
+l.adjR2.H3a.r1 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
 
-l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H3a.R2[[i]])
+l.compare.adjR2 <- sapply(seq_along(l.adjR2.H3a.r1), \(i) l.adjR2.H2.r1[[i]]-l.adjR2.H3a.r1[[i]])
 
-l.compare.R2
+l.compare.adjR2
 
 #
 
@@ -698,7 +719,7 @@ l.load <- split(df.load.restrict.2, f=df.load.restrict.2$Term)
 l.load <- lapply(l.load, \(i) i %>% select(Term, term, pred.vars)) # sticking with result 1 for now...
 l.load <- lapply(l.load, \(i) i %>% select(-Term))
 l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H2.restriction.2.html")
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H2.r2.html")
 l.VIF <- lapply(l.lm, vif)
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
   pivot_longer(cols = -Term)
@@ -709,11 +730,11 @@ ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
 
 # H2 w/ r2 improved H2 w/ r1:
 
-l.H2.restrict.2.R2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
+l.adjR2.H2.r2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
 
-l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H2.restrict.2.R2[[i]])
+l.compare.adjR2 <- sapply(seq_along(l.adjR2.H2.r2), \(i) l.adjR2.H2.r1[[i]]-l.adjR2.H2.r2[[i]])
 
-l.compare.R2
+l.compare.adjR2
 
 #
 
@@ -764,7 +785,7 @@ l.load <- split(df.load.restrict.2, f=df.load.restrict.2$Term)
 l.load <- lapply(l.load, \(i) i %>% select(Term, term, pred.vars)) # sticking with result 1 for now...
 l.load <- lapply(l.load, \(i) i %>% select(-Term))
 l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H2.restriction.3.html")
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H2.r3.html")
 l.VIF <- lapply(l.lm, vif)
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
   pivot_longer(cols = -Term)
@@ -835,7 +856,7 @@ l.load <- lapply(l.load, \(i) split(i, f=i$Term))
 l.load <- purrr::flatten(l.load)
 l.load <- lapply(l.load, \(i) i %>% select(-Term))
 l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H3.restriction.2.html")
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H3.r2.html")
 l.VIF <- lapply(l.lm, vif)
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
   pivot_longer(cols = -Term)
@@ -912,7 +933,7 @@ l.load <- lapply(l.load, \(i) split(i, f=i$Term))
 l.load <- purrr::flatten(l.load)
 l.load <- lapply(l.load, \(i) i %>% select(-Term))
 l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H3.restriction.3.html")
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H3.r3.html")
 l.VIF <- lapply(l.lm, vif)
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
   pivot_longer(cols = -Term)
@@ -967,7 +988,7 @@ l.compare.R2
 
 
 
-#### Set up df for overlapping sites across TP, TN, SRP ####
+#### Set up df for r4 - overlapping sites across TP, TN, SRP ####
 
 # for R1, filter SRP and TP sites down to just TN sites:
 
@@ -1006,7 +1027,7 @@ df.load.overlap <- df.load %>% filter(Name %in% sites.to.keep)
 
 
 
-#### H2 with overlapping sites + R1 ####
+#### H2 with overlapping sites ####
 
 # H2 workflow:
 
@@ -1025,21 +1046,24 @@ l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c( 'FRAGUN')],
                     TN = pred.vars[! pred.vars  %in% c('FRAGUN')],
                     TP = pred.vars[! pred.vars  %in% c('FRAGUN')])
 l.load <- split(df.load.overlap, f=df.load.overlap$Consit)
-l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
+l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]])) # VIF too high
+# l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, pred.vars))
 l.load <- lapply(l.load, \(i) split(i, f=i$Term))
 l.load <- purrr::flatten(l.load)
 l.load <- lapply(l.load, \(i) i %>% select(-Term))
 l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="H2.overlapping.sites.html")
+tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H2.r4.html")
 l.VIF <- lapply(l.lm, vif)
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% pivot_longer(cols = -Term)
 ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+geom_point()+geom_line()
 
-# compare adjR2 with H2 w/ R1:
+# save 
 
-l.H2.overlap.R2 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
+# RP Improved Model adjR2
 
-l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.H2.overlap.R2[[i]])
+l.adjR2.H2.r4 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
+
+l.compare.R2 <- sapply(seq_along(l.H2.R2), \(i) l.H2.R2[[i]]-l.adjR2.H2.r4[[i]])
 
 l.compare.R2
 
@@ -1115,10 +1139,36 @@ l.compare.R2
 
 
 
+#### Scatter plot of WP Ag and RP Ag ####
 
+l.plot <- df.load %>% group_by(Consit) %>% distinct(Name, .keep_all = T) %>% ungroup() %>%  split(., f = .$Consit)
 
+df.plot <- bind_rows(l.plot) %>% select(Name, Consit, R_PLANTNLCD06, R_RIP100_PLANT) 
 
+ggplot(df.plot, aes(x = R_PLANTNLCD06, y = R_RIP100_PLANT))+
+  geom_point()+
+  geom_line(aes(x = R_PLANTNLCD06, y = R_PLANTNLCD06), color = 'red')+
+  geom_line(aes(x = R_PLANTNLCD06, y = 1.5*R_PLANTNLCD06), color = 'darkgreen')+
+  # facet_wrap(~Consit, scales = 'free')+
+  labs(x = 'WP Ag', y = 'RP Ag')
 
+# lets look at sites with more RP Ag than WP Ag:
+
+df.RP.more.WP <- df.plot%>% 
+  mutate(RP.more.WP = ifelse(R_RIP100_PLANT > R_PLANTNLCD06, 'Yes', 'No')) %>% 
+  filter(RP.more.WP == 'Yes') %>% 
+  distinct(Name)
+
+fun.map.DA(df.RP.more.WP$Name)
+
+# lets look at sites with 50% more RP than WP Ag:
+
+df.RP.more.WP <- df.plot%>% 
+  mutate(RP.50perc.more = ifelse(R_RIP100_PLANT > 1.5*R_PLANTNLCD06, 'Yes', 'No')) %>%
+  filter(RP.50perc.more == 'Yes') %>% 
+  distinct(Name)
+
+fun.map.DA(df.RP.50perc.more$Name)
 
 
 
