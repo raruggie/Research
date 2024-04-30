@@ -363,7 +363,7 @@ df.NWIS.TP_CQ<-left_join(df.NWIS.TP_CQ, df.DA, by = 'site_no')%>%
 
 # number of sites with >=20 paired CQ observations:
 
-length(unique(df.NWIS.TP_CQ$site_no))
+length(unique(df.NWIS.TP_CQ$site_no)) # 
 
 # 1) sites with samples after 2001:
 
@@ -491,6 +491,8 @@ x <- df.DA %>%
 
 fun.map.DA(x$Name, x)
 
+length(unique(x$Name)) # 63-4 = 59
+
 df.TP_CQ <- df.TP_CQ %>% filter(site_no %in% x$Name) 
 
 # 2) 50 samples:
@@ -577,7 +579,7 @@ df_Seg<-left_join(df_Seg, temp%>%select(site, n_sample_rank), by = 'site')%>%
 
 df.Seg <- df_Seg
 
-save(df.Seg, file = 'Processed_Data/df.Seg.Rdata')
+# save(df.Seg, file = 'Processed_Data/df.Seg.Rdata')
 
 # ready to plot:
 
@@ -1937,35 +1939,41 @@ df.importance <- as.data.frame(pc3a$rotation) %>% arrange(PC1, desc = F)
 # AANY.hydrosep
 # medC
 
-resp.vars <- c("OLS.Slope.1s", "OLS.Slope.2s_hydrosep_post", "MAFWC", 'FWAC', "OLS.AANY.2s.hydrosep.method2", "medC")
+# names(df.setup)
 
-# One last check of the site restrictions:
-# I want to make sure that at least 25 samples make up the stormflow segmenet:
+resp.vars <- c("OLS.Slope.1s", 'OLS.Slope.2s_medQ_post', "OLS.Slope.2s_hydrosep_post", "MAFWC", 'FWAC', "OLS.AANY.2s.medQ.method2", "OLS.AANY.2s.hydrosep.method2", "medC")
 
-test <- df.RP %>% 
-  filter(Name %in% df.g$Name) %>% 
-  filter(Q_type == 'Stormflow') %>% 
-  group_by(Name) %>% 
-  summarise(n_storm=n()) %>% 
-  arrange(n_storm)
-
-test1 <- df.TP_CQ %>% 
-  distinct(site_no, n) %>% 
-  rename(Name = 1) %>% 
-  left_join(., test, by = 'Name') %>% 
-  mutate(frac = n_storm/n) %>% 
-  arrange(frac)
-
-ggplot(df.RP, aes(x = log_Q, y = log_C, color = Q_type)) +
-  geom_point()+
-  geom_smooth(method = 'lm')+
-  facet_wrap(~Name, scales = 'free')
-
-# looks good
+# # One last check of the site restrictions:
+# # I want to make sure that at least 25 samples make up the stormflow segmenet:
+# 
+# test <- df.RP %>% 
+#   filter(Name %in% df.g$Name) %>% 
+#   filter(Q_type == 'Stormflow') %>% 
+#   group_by(Name) %>% 
+#   summarise(n_storm=n()) %>% 
+#   arrange(n_storm)
+# 
+# test1 <- df.TP_CQ %>% 
+#   distinct(site_no, n) %>% 
+#   rename(Name = 1) %>% 
+#   left_join(., test, by = 'Name') %>% 
+#   mutate(frac = n_storm/n) %>% 
+#   arrange(frac)
+# 
+# ggplot(df.RP, aes(x = log_Q, y = log_C, color = Q_type)) +
+#   geom_point()+
+#   geom_smooth(method = 'lm')+
+#   facet_wrap(~Name, scales = 'free')
+# 
+# # looks good
 
 # set up dataframes for the 4 response variables::
 
-l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% filter(Name %in% df.g$Name) %>% select(i, v.pred.cols) %>% rename(term = 1)) %>% purrr::set_names(resp.vars)
+l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% 
+                           filter(Name %in% df.g$Name) %>%
+                           select(i, v.pred.cols) %>% 
+                           rename(term = 1)) %>% 
+  purrr::set_names(resp.vars)
 
 # save:
 

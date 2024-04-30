@@ -1814,31 +1814,33 @@ df.importance <- as.data.frame(pc3a$rotation) %>% arrange(PC1, desc = F)
 # AANY.hydrosep
 # medC
 
-resp.vars <- c("OLS.Slope.1s", "OLS.Slope.2s_hydrosep_post", "MAFWC", 'FWAC', "OLS.AANY.2s.hydrosep.method2", "medC")
+# names(df.setup)
 
-# One last check of the site restrictions:
-# I want to make sure that at least 25 samples make up the stormflow segmenet:
+resp.vars <- c("OLS.Slope.1s", 'OLS.Slope.2s_medQ_post', "OLS.Slope.2s_hydrosep_post", "MAFWC", 'FWAC', "OLS.AANY.2s.medQ.method2", "OLS.AANY.2s.hydrosep.method2", "medC")
 
-test <- df.RP %>% 
-  filter(Name %in% df.g$Name) %>% 
-  filter(Q_type == 'Stormflow') %>% 
-  group_by(Name) %>% 
-  summarise(n_storm=n()) %>% 
-  arrange(n_storm)
-
-test1 <- df.TN_CQ %>% 
-  distinct(site_no, n) %>% 
-  rename(Name = 1) %>% 
-  left_join(., test, by = 'Name') %>% 
-  mutate(frac = n_storm/n) %>% 
-  arrange(frac)
-
-ggplot(df.RP, aes(x = log_Q, y = log_C, color = Q_type)) +
-  geom_point()+
-  geom_smooth(method = 'lm')+
-  facet_wrap(~Name, scales = 'free')
-
-# looks good
+# # One last check of the site restrictions:
+# # I want to make sure that at least 25 samples make up the stormflow segmenet:
+# 
+# test <- df.RP %>% 
+#   filter(Name %in% df.g$Name) %>% 
+#   filter(Q_type == 'Stormflow') %>% 
+#   group_by(Name) %>% 
+#   summarise(n_storm=n()) %>% 
+#   arrange(n_storm)
+# 
+# test1 <- df.TN_CQ %>% 
+#   distinct(site_no, n) %>% 
+#   rename(Name = 1) %>% 
+#   left_join(., test, by = 'Name') %>% 
+#   mutate(frac = n_storm/n) %>% 
+#   arrange(frac)
+# 
+# ggplot(df.RP, aes(x = log_Q, y = log_C, color = Q_type)) +
+#   geom_point()+
+#   geom_smooth(method = 'lm')+
+#   facet_wrap(~Name, scales = 'free')
+# 
+# # looks good
 
 # set up dataframes for the 4 response variables::
 

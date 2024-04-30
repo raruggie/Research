@@ -246,9 +246,9 @@ df.CAFO <- df.sf %>% st_set_geometry(NULL)
 
 # combine load response variables for each consituent:
 
-l.load <- c(l.TP[3:6],l.TN[3:6],l.SRP[3:6])
+l.load <- c(l.TP[4:8],l.TN[4:8],l.SRP[4:8])
 
-names(l.load) <- c('TP.MAFWC', 'TP.FWAC', 'TP.AANY', 'TP.medC','TN.MAFWC', 'TN.FWAC', 'TN.AANY', 'TN.medC','SRP.MAFWC', 'SRP.FWAC', 'SRP.AANY', 'SRP.medC')
+names(l.load) <- c('TP.MAFWC', 'TP.FWAC', 'TP.AANY.medQ', 'TP.AANY.hydro', 'TP.medC','TN.MAFWC', 'TN.FWAC', 'TN.AANY.medQ', 'TN.AANY.hydro', 'TN.medC','SRP.MAFWC', 'SRP.FWAC', 'SRP.AANY.medQ', 'SRP.AANY.hydro', 'SRP.medC')
 
 df.load <- bind_rows(l.load, .id = 'Term')
 
@@ -263,6 +263,10 @@ df.load <- left_join(df.load, df.CAFO, by = 'Name')
 # add constituent column to df.load:
 
 df.load <- df.load %>% mutate(Consit = gsub("\\..*","",Term), .after = 1)
+
+# convert FRAGUN to 0-1 %:
+
+df.load$FRAGUN <- df.load$FRAGUN/100
 
 #
 
@@ -302,29 +306,15 @@ df.load <- df.load %>% mutate(Consit = gsub("\\..*","",Term), .after = 1)
 
 l.slope <- c(l.TP[1:2],l.TN[1:2],l.SRP[1:2])
 
-names(l.slope) <- c('TP.overal', 'TP.storm', 'TN.overal', 'TN.storm', 'SRP.overal', 'SRP.storm')
+names(l.slope) <- c('TP.overal', 'TP.post', 'TN.overal', 'TN.post', 'SRP.overal', 'SRP.post')
 
 df.slope <- bind_rows(l.slope, .id = 'Term')
 
-# scatterplot:
-
-ggplot(df.slope, aes(x = R_FORESTNLCD06, y = term))+
-  geom_point()+
-  geom_smooth(method = 'lm')+
-  facet_wrap(~Term, ncol = 2)+
-  stat_poly_eq(use_label(c("eq", "R2", 'p.value')))
+# boxplot with WP forest:
 
 ggplot(df.slope, aes(x=Term, y=term)) +
   geom_boxplot() +
   geom_point(position=position_jitterdodge(), aes(color = R_FORESTNLCD06, size = R_FORESTNLCD06))+
-  # scale_colour_gradient(
-  #   low = 'red',
-  #   high = 'blue',
-  #   space = "Lab",
-  #   na.value = "grey50",
-  #   guide = "colourbar",
-  #   aesthetics = "colour"
-  # )+
   geom_hline(yintercept=0, linetype="dashed", 
              color = "green", size=2)+
   labs(x = 'Slope Term', y = 'Slope Value',
@@ -334,8 +324,6 @@ ggplot(df.slope, aes(x=Term, y=term)) +
   scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
                          high = 'blue',) +
   guides(color= guide_legend(), size=guide_legend())
-
-
 
 #
 
@@ -367,6 +355,100 @@ ggplot(df.slope, aes(x=Term, y=term)) +
 
 
 
+#### Boxplots of Predictors/HSG issues ####
+
+pred.vars <- names(df.load %>% select(c('WWTP.fraction', 'CAFO_count', 'FRAGUN', "Elev_Median"), starts_with('HSG_'), c('R_PLANTNLCD06', "R_DEVNLCD06", 'R_FORESTNLCD06', "R_CROPSNLCD06", "R_PASTURENLCD06", "Corn",  'R_RIP100_PLANT', 'R_RIP100_DEV', "CSA_perc", "RIP.CSA.100")))
+
+# lets make boxplots of the predictors:
+
+df.plot <- df.load %>% 
+  filter(Term == 'TP.medC') %>% 
+  select(pred.vars) %>% 
+  mutate(CAFO_count = range01(CAFO_count),
+         Elev_Median = range01(Elev_Median)) %>% 
+  pivot_longer(cols = -R_FORESTNLCD06)
+
+df.plot %>% 
+  # filter(!name %in% c('CAFO_count', 'Elev_Median')) %>% 
+  ggplot(., aes(x=name, y=value)) +
+    geom_boxplot() +
+    geom_point(position=position_jitterdodge(), aes(color = R_FORESTNLCD06, size = R_FORESTNLCD06))+
+    labs(x = 'Predictor Variable', y = 'Value',
+         color = 'WP Forest',
+         size = 'WP Forest')+
+    scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
+    scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
+                           high = 'blue',) +
+    guides(color= guide_legend(), size=guide_legend())+
+  theme(axis.text.x = element_text(angle = 35, vjust = 0.5, hjust=1))
+  
+# there appears to be a trend between WP forest and HSG C and D
+
+df.plot <- df.load %>% 
+  filter(Term == 'TP.medC') %>% 
+  select(Name,R_FORESTNLCD06, starts_with('HSG_')) %>% 
+  mutate(HSG_Cover = rowSums(across(starts_with('HSG_')))) %>% 
+  arrange(HSG_Cover)
+
+# there isnt 100% cover of HSG for most watersheds
+
+# lets make a plot of percent HSG cover colored by WP forest:
+
+df.plot %>% 
+  pivot_longer(cols = starts_with('HSG_')) %>%
+  ggplot(., aes(x = name, y=value)) +
+  geom_boxplot() +
+  geom_point(position=position_jitterdodge(), aes(color = R_FORESTNLCD06, size = R_FORESTNLCD06))+
+  labs(x = '', y = 'HSG % Cover',
+       color = 'WP Forest',
+       size = 'WP Forest')+
+  scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
+  scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
+                         high = 'blue',) +
+  guides(color= guide_legend(), size=guide_legend())
+
+# lets look at maps of HSG_*:
+
+# HSG_Cover:
+
+df.map <- df.plot %>% select(Name, HSG_Cover) %>% rename(Group = 2)
+
+fun.map.DA(df.map$Name, df.map)
+
+# HSG_C:
+
+df.map <- df.plot %>% select(Name, HSG_C) %>% rename(Group = 2)
+
+fun.map.DA(df.map$Name, df.map)
+
+# HSG_D:
+
+df.map <- df.plot %>% select(Name, HSG_D) %>% rename(Group = 2)
+
+fun.map.DA(df.map$Name, df.map)
+
+# I am worried that lack of soils cover means CSA percent is not 'valid' 
+
+# maybe remove sites with less than 80% soils cover?
+  
+df.map <- df.plot %>% select(Name, HSG_Cover) %>% rename(Group = 2) %>% filter(Group<.8)
+
+fun.map.DA(df.map$Name, df.map)
+
+# lets remove these three sites from future analysis because we can trust its HSG and CSA predictors:
+
+df.load <- df.load %>% filter(!Name %in% df.map$Name)
+
+# how many sites are not in TP, SRP, and TN:
+
+x <- split(df.load, f = df.load$Consit)
+
+y <- sapply(x, \(i) unique(i$Name))
+
+
+
+
+
 
 
 #### H2 ####
@@ -375,7 +457,7 @@ ggplot(df.slope, aes(x=Term, y=term)) +
 
 # the predictor variables for this section are:
 
-pred.vars <- c('HSG_D', 'WWTP.fraction', 'CAFO_count', 'R_PLANTNLCD06', "R_DEVNLCD06", 'FRAGUN')
+pred.vars <- names(df.load %>% select(c('WWTP.fraction', 'CAFO_count', 'FRAGUN', "Elev_Median"), starts_with('HSG_'), c('R_PLANTNLCD06', "R_DEVNLCD06", 'R_FORESTNLCD06', "R_CROPSNLCD06", "R_PASTURENLCD06", "Corn",  'R_RIP100_PLANT', 'R_RIP100_DEV', "CSA_perc", "RIP.CSA.100")))
 
 # make correlation matrix plot for each consit:
 

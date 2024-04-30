@@ -356,9 +356,9 @@ add_columns <- function(df, columns){
 # if function doesnt work (maybe throws error that says file not found), try emptying Users/ryrug/AppData/Local/Temp folder
 # 
 
-# i<-12
-# site_no<-df.sf.NWIS$Name[i]
-# sf.df<-df.sf.NWIS
+# i <- which(df.sf.NWIS.62$Name=='0143400680')
+# site_no<-df.sf.NWIS.62$Name[i]
+# sf.df<-df.sf.NWIS.62
 
 fun.SURRGO_HSG<-function(site_no, sf.df){
   
@@ -380,7 +380,7 @@ fun.SURRGO_HSG<-function(site_no, sf.df){
     l.soils<-FedData::get_ssurgo(template = template, label = site_no)
     # look at map:
     
-    # mapview(l.soils[[1]])+mapview(template)
+    mapview(l.soils[[1]])+mapview(template)
     
     # will need to clip but can do that later...
     
@@ -741,9 +741,9 @@ fun.FRAGUN_BASIN<-function(i, landscape){
 
 # function to determine percent CSA in watershed:
 
-i<-5
+# i<-which(df.sf.NWIS.62$Name == '04232050') 
 
-# WA<-df.sf.NWIS[i,]
+# WA<-df.sf.NWIS.62[i,]
 
 fun.CSA_watershed_percent<-function(i, WA){
   
@@ -800,6 +800,8 @@ fun.CSA_watershed_percent<-function(i, WA){
     # rasterize:
     
     rast.soils<-rasterize(vect.soils, rast.slope, field = 'hydgrpdcd')
+    
+    # plot(x=rast.soils, col = c('red', 'blue', 'green', 'yellow'))
     
     # classify levels to only 3 (will be used later for good, fair, and poor drainage):
     
