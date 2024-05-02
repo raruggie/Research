@@ -122,11 +122,11 @@ TP.SRP == SRP.sites # all SRP sites are in TP
 
 # set up df for mapping:
 
-df.map <- data.frame(Name = TP.sites)
+df.map.1 <- data.frame(Name = TP.sites)
 
 # add group column that identifes site with its consituent intersection:
 
-df.map <- df.map %>% mutate(Group = ifelse(Name %in% TP.TN.SRP, 
+df.map.1 <- df.map.1 %>% mutate(Group = ifelse(Name %in% TP.TN.SRP, 
                                            'TP.TN.SRP', 
                                            ifelse(Name %in% TP.SRP,
                                                   'TP.SRP',
@@ -134,7 +134,7 @@ df.map <- df.map %>% mutate(Group = ifelse(Name %in% TP.TN.SRP,
 
 # make map of sites for each consituent group:
 
-# fun.map.DA(df.map$Name, df.map)
+# fun.map.DA(df.map.1$Name, df.map.1)
 
 #
 
@@ -246,9 +246,9 @@ df.CAFO <- df.sf %>% st_set_geometry(NULL)
 
 # combine load response variables for each consituent:
 
-l.load <- c(l.TP[4:8],l.TN[4:8],l.SRP[4:8])
+l.load <- c(l.TP[c(4,5,6,8)],l.TN[c(4,5,6,8)],l.SRP[c(4,5,6,8)])
 
-names(l.load) <- c('TP.MAFWC', 'TP.FWAC', 'TP.AANY.medQ', 'TP.AANY.hydro', 'TP.medC','TN.MAFWC', 'TN.FWAC', 'TN.AANY.medQ', 'TN.AANY.hydro', 'TN.medC','SRP.MAFWC', 'SRP.FWAC', 'SRP.AANY.medQ', 'SRP.AANY.hydro', 'SRP.medC')
+names(l.load) <- c('TP.MAFWC', 'TP.FWAC', 'TP.AANY.medQ', 'TP.medC','TN.MAFWC', 'TN.FWAC', 'TN.AANY.medQ', 'TN.medC','SRP.MAFWC', 'SRP.FWAC', 'SRP.AANY.medQ', 'SRP.medC')
 
 df.load <- bind_rows(l.load, .id = 'Term')
 
@@ -355,7 +355,7 @@ ggplot(df.slope, aes(x=Term, y=term)) +
 
 
 
-#### Boxplots of Predictors/HSG issues ####
+#### Boxplots of Predictors + Response Variables ####
 
 pred.vars <- names(df.load %>% select(c('WWTP.fraction', 'CAFO_count', 'FRAGUN', "Elev_Median"), starts_with('HSG_'), c('R_PLANTNLCD06', "R_DEVNLCD06", 'R_FORESTNLCD06', "R_CROPSNLCD06", "R_PASTURENLCD06", "Corn",  'R_RIP100_PLANT', 'R_RIP100_DEV', "CSA_perc", "RIP.CSA.100")))
 
@@ -381,7 +381,36 @@ df.plot %>%
                            high = 'blue',) +
     guides(color= guide_legend(), size=guide_legend())+
   theme(axis.text.x = element_text(angle = 35, vjust = 0.5, hjust=1))
-  
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### HSG issues ####
+
 # there appears to be a trend between WP forest and HSG C and D
 
 df.plot <- df.load %>% 
@@ -399,7 +428,7 @@ df.plot %>%
   ggplot(., aes(x = name, y=value)) +
   geom_boxplot() +
   geom_point(position=position_jitterdodge(), aes(color = R_FORESTNLCD06, size = R_FORESTNLCD06))+
-  labs(x = '', y = 'HSG % Cover',
+  labs(x = '', y = 'Value',
        color = 'WP Forest',
        size = 'WP Forest')+
   scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
@@ -443,12 +472,15 @@ df.load <- df.load %>% filter(!Name %in% df.map$Name)
 
 x <- split(df.load, f = df.load$Consit)
 
-y <- sapply(x, \(i) unique(i$Name))
+y <- sapply(x, \(i) length(unique(i$Name)))
 
+y
 
+# remake map of watersheds colored by constituent availability:
 
+df.map.1 <- df.map.1 %>% filter(Name %in% unique(df.load$Name))
 
-
+# fun.map.DA(df.map.1$Name, df.map.1)
 
 
 #### H2 ####
@@ -457,29 +489,54 @@ y <- sapply(x, \(i) unique(i$Name))
 
 # the predictor variables for this section are:
 
-pred.vars <- names(df.load %>% select(c('WWTP.fraction', 'CAFO_count', 'FRAGUN', "Elev_Median"), starts_with('HSG_'), c('R_PLANTNLCD06', "R_DEVNLCD06", 'R_FORESTNLCD06', "R_CROPSNLCD06", "R_PASTURENLCD06", "Corn",  'R_RIP100_PLANT', 'R_RIP100_DEV', "CSA_perc", "RIP.CSA.100")))
+pred.vars.H2 <- names(df.load %>% select(c('WWTP.fraction', 
+                                           'CAFO_count', 
+                                           'FRAGUN', 
+                                           "Elev_Median",
+                                           'HSG_C', 
+                                           'HSG_D', 
+                                           'R_PLANTNLCD06',
+                                           "R_DEVNLCD06", 
+                                           'R_FORESTNLCD06', 
+                                           "R_CROPSNLCD06", 
+                                           "R_PASTURENLCD06", 
+                                           "Corn"
+                                           ))) 
 
 # make correlation matrix plot for each consit:
 
 l.plot <- df.load %>% group_by(Consit) %>% distinct(Name, .keep_all = T) %>% ungroup() %>%  split(., f = .$Consit)
 
-p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)), 
+p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars.H2)), 
            type = "lower",
            outline.col = "white",
            method = 'circle',
            lab = TRUE,
-           p.mat = cor_pmat(l.plot[[i]] %>% select(pred.vars)),
+           p.mat = cor_pmat(l.plot[[i]] %>% select(pred.vars.H2)),
            insig = "blank",
            title = names(l.plot)[i]))
 
 ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
 
-# TN: remove WWTP.fraction and FRAGUN
-# SRP/TP: remove HSG D and FRAGUN:
+# set up predictor list for each consit:
 
-l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('FRAGUN')],
-                    TN = pred.vars[! pred.vars  %in% c('FRAGUN')],
-                    TP = pred.vars[! pred.vars  %in% c('FRAGUN')])
+pred.vars.H2.sub <- names(df.load %>% select(c('WWTP.fraction',
+                                               'CAFO_count',
+                                               # 'FRAGUN',
+                                               "Elev_Median",
+                                               'HSG_C', 
+                                               'HSG_D', 
+                                               # 'R_PLANTNLCD06',
+                                               "R_DEVNLCD06",
+                                               # 'R_FORESTNLCD06', 
+                                               "R_CROPSNLCD06",
+                                               "R_PASTURENLCD06",
+                                               # "Corn"
+                                               ))) 
+
+l.pred.vars <- list(SRP = pred.vars.H2.sub,
+                    TN = pred.vars.H2.sub[! pred.vars.H2.sub  %in% c('R_DEVNLCD06')],
+                    TP = pred.vars.H2.sub)
 
 # split df.load by consit:
 
@@ -487,6 +544,7 @@ l.load <- split(df.load, f=df.load$Consit)
 
 # select the two term and just these predictors for each consit:
 
+# l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, pred.vars.H2.sub))
 l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
 
 # split this list into list ot list for each Term:
@@ -507,7 +565,7 @@ l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
 
 # visualize model comparisons:
 
-tab_model(l.lm, show.p = F, show.ci = F,show.aic = T, p.style = 'scientific_stars', p.threshold = c(0.10, 0.05, 0.01), dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H2.r1.html")
+tab_model(l.lm, show.p = F, show.ci = F, p.style = "stars", p.threshold = c(0.10, 0.05, 0.01), dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H2.r1.html")
 
 # lets look at VIF for these models:
 
@@ -520,9 +578,7 @@ ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
   geom_point()+
   geom_line()
 
-# save l.load and l.lm as l.load.H2 and l.lm.H2:
-
-l.load.H2 <- l.load
+# save models:
 
 l.lm.H2 <- l.lm
 
@@ -555,30 +611,60 @@ l.lm.H2 <- l.lm
 
 # H3: Incorporating measures of the fraction of developed land in close proximity to streams (i.e. land use within stream buffers) improves prediction of watershed variations in nutrient load
 
-# the predictor variables for this section are:
+# add RIP predictors to set from H2:
 
-pred.vars <- c('HSG_D', 'WWTP.fraction', 'CAFO_count',  'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06", "R_RIP100_PLANT", "R_RIP100_DEV")
+pred.vars.H3 <- names(df.load %>% select(c('WWTP.fraction', 
+                                           'CAFO_count', 
+                                           'FRAGUN', 
+                                           "Elev_Median",
+                                           'HSG_C', 
+                                           'HSG_D', 
+                                           'R_PLANTNLCD06',
+                                           "R_DEVNLCD06", 
+                                           'R_FORESTNLCD06', 
+                                           "R_CROPSNLCD06", 
+                                           "R_PASTURENLCD06", 
+                                           "Corn", 
+                                           'R_RIP100_PLANT',
+                                           'R_RIP100_DEV'
+)))
 
 # make correlation matrix plot for each consit:
 
 l.plot <- df.load %>% group_by(Consit) %>% distinct(Name, .keep_all = T) %>% ungroup() %>%  split(., f = .$Consit)
 
-p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars)), 
+p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars.H3)), 
                                       type = "lower",
                                       outline.col = "white",
                                       method = 'circle',
                                       lab = TRUE,
-                                      p.mat = cor_pmat(l.plot[[i]] %>% select(pred.vars)),
+                                      p.mat = cor_pmat(l.plot[[i]] %>% select(pred.vars.H3)),
                                       insig = "blank",
                                       title = names(l.plot)[i]))
 
 # ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
 
-# remove HSG_D, FRAGUN, R_PLANT, R_DEV:
+# set up predictor list for each consit:
 
-l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")],
-                    TN = pred.vars[! pred.vars  %in% c('FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")],
-                    TP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN', 'R_PLANTNLCD06', "R_DEVNLCD06")])
+pred.vars.H3.sub <- names(df.load %>% select(c('WWTP.fraction', 
+                                               'CAFO_count', 
+                                               # 'FRAGUN', 
+                                               "Elev_Median",
+                                               'HSG_C', 
+                                               'HSG_D', 
+                                               # 'R_PLANTNLCD06',
+                                               "R_DEVNLCD06", 
+                                               # 'R_FORESTNLCD06', 
+                                               "R_CROPSNLCD06", 
+                                               "R_PASTURENLCD06", 
+                                               # "Corn", 
+                                               'R_RIP100_PLANT',
+                                               'R_RIP100_DEV'
+)))
+
+l.pred.vars <- list(SRP = pred.vars.H3.sub,
+                    TN = pred.vars.H3.sub[! pred.vars.H2.sub  %in% c('R_DEVNLCD06',"Elev_Median")],
+                    TP = pred.vars.H3.sub)
 
 # split df.load by consit:
 
@@ -586,6 +672,7 @@ l.load <- split(df.load, f=df.load$Consit)
 
 # select the two term and just these predictors for each consit:
 
+# l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, pred.vars.H3.sub))
 l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
 
 # split this list into list ot list for each Term:
@@ -606,7 +693,7 @@ l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
 
 # visualize model comparisons:
 
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H3.r1.html")
+tab_model(l.lm, show.p = F, show.ci = F, p.style = "stars", p.threshold = c(0.10, 0.05, 0.01), dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H3.r1.html")
 
 # lets look at VIF for these models:
 
@@ -619,11 +706,42 @@ ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
   geom_point()+
   geom_line()
 
-# save l.load and l.lm as l.load.H3 and l.lm.H3:
-
-l.load.H3 <- l.load
+# save:
 
 l.lm.H3 <- l.lm
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Does H3 Improve adj R2 over H2? ####
 
 # RP improved Model adjR2:
 
@@ -663,36 +781,158 @@ l.compare.adjR2
 
 
 
+#### H4 ####
 
-#### H3a: Include the WP ag/dev into H3 ####
+# H4: Incorporating measures of the presumed critical source areas improves prediction of watershed variations in nutrient load
 
-l.pred.vars <- list(SRP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')],
-                    TN = pred.vars[! pred.vars  %in% c('FRAGUN')],
-                    TP = pred.vars[! pred.vars  %in% c('HSG_D', 'FRAGUN')])
+# add RIP predictors to set from H2:
+
+pred.vars.H4 <- names(df.load %>% select(c('WWTP.fraction', 
+                                           'CAFO_count', 
+                                           'FRAGUN', 
+                                           "Elev_Median",
+                                           'HSG_C', 
+                                           'HSG_D', 
+                                           'R_PLANTNLCD06',
+                                           "R_DEVNLCD06", 
+                                           'R_FORESTNLCD06', 
+                                           "R_CROPSNLCD06", 
+                                           "R_PASTURENLCD06", 
+                                           "Corn", 
+                                           'R_RIP100_PLANT',
+                                           'R_RIP100_DEV',
+                                           "CSA_perc", 
+                                           "RIP.CSA.100"
+                                           
+)))
+
+# make correlation matrix plot for each consit:
+
+l.plot <- df.load %>% group_by(Consit) %>% distinct(Name, .keep_all = T) %>% ungroup() %>%  split(., f = .$Consit)
+
+p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars.H4)), 
+                                      type = "lower",
+                                      outline.col = "white",
+                                      method = 'circle',
+                                      lab = TRUE,
+                                      p.mat = cor_pmat(l.plot[[i]] %>% select(pred.vars.H4)),
+                                      insig = "blank",
+                                      title = names(l.plot)[i]))
+
+# ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
+
+# set up predictor list for each consit:
+
+pred.vars.H4.sub <- names(df.load %>% select(c('WWTP.fraction', 
+                                               'CAFO_count', 
+                                               # 'FRAGUN', 
+                                               "Elev_Median",
+                                               # 'HSG_C',
+                                               # 'HSG_D', 
+                                               # 'R_PLANTNLCD06',
+                                               # "R_DEVNLCD06", 
+                                               # 'R_FORESTNLCD06', 
+                                               # "R_CROPSNLCD06", 
+                                               "R_PASTURENLCD06", 
+                                               # "Corn", 
+                                               # 'R_RIP100_PLANT',
+                                               # 'R_RIP100_DEV',
+                                               "CSA_perc", 
+                                               "RIP.CSA.100"
+                                               
+)))
+
+# l.pred.vars <- list(SRP = pred.vars.H3.sub,
+#                     TN = pred.vars.H3.sub[! pred.vars.H2.sub  %in% c('R_DEVNLCD06',"Elev_Median")],
+#                     TP = pred.vars.H3.sub)
+
+# split df.load by consit:
+
 l.load <- split(df.load, f=df.load$Consit)
-l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, HSG_D,R_PLANTNLCD06, R_RIP100_PLANT))
+
+# select the two term and just these predictors for each consit:
+
+l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, pred.vars.H4.sub))
+# l.load <- lapply(names(l.load), \(i) l.load[[i]] %>% select(Term, term, l.pred.vars[[i]]))
+
+# split this list into list ot list for each Term:
+
 l.load <- lapply(l.load, \(i) split(i, f=i$Term))
+
+# flatten list of list into just list of dfs:
+
 l.load <- purrr::flatten(l.load)
+
+# drop Term column from each df:
+
 l.load <- lapply(l.load, \(i) i %>% select(-Term))
+
+# build lm to predict:
+
 l.lm <- lapply(l.load, \(i) lm(term ~ ., data = i))
-tab_model(l.lm, dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H3a.r1.html")
+
+# visualize model comparisons:
+
+tab_model(l.lm, show.p = F, show.ci = F, p.style = "stars", p.threshold = c(0.10, 0.05, 0.01), dv.labels = names(l.lm), title = paste('Comparison of MLR models'), file="Processed_Data/model.comparisons/H4.r1.html")
+
+# lets look at VIF for these models:
+
 l.VIF <- lapply(l.lm, vif)
+
 df.VIF <- bind_rows(l.VIF, .id = 'Term') %>% 
   pivot_longer(cols = -Term)
+
 ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
   geom_point()+
   geom_line()
 
-# RP improved model adjR2:
+# save:
 
-l.adjR2.H3a.r1 <- lapply(l.lm, \(i) summary(i)$adj.r.squared)
+l.lm.H4 <- l.lm
 
-l.compare.adjR2 <- sapply(seq_along(l.adjR2.H3a.r1), \(i) l.adjR2.H2.r1[[i]]-l.adjR2.H3a.r1[[i]])
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Does H4 Improve adj R2 over H2? ####
+
+# RP improved Model adjR2:
+
+l.adjR2.H2.r1 <- lapply(l.lm.H2, \(i) summary(i)$adj.r.squared)
+l.adjR2.H4.r1 <- lapply(l.lm.H4, \(i) summary(i)$adj.r.squared)
+
+l.compare.adjR2 <- sapply(seq_along(l.adjR2.H2.r1), \(i) l.adjR2.H2.r1[[i]]-l.adjR2.H4.r1[[i]])
 
 l.compare.adjR2
 
 #
-
 
 
 
