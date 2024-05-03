@@ -1397,7 +1397,7 @@ fun.map.DA <- function(v.site_no = df.sf.NWIS.62$Name, zcol.key = data.frame(Nam
 
 # function to normalize data between zero and 1:
 
-range01 <- function(x){(x-min(x))/(max(x)-min(x))}
+range01 <- function(x){(x-min(x, na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))}
 
 # function to make plot of pca biplot by observation:
 
@@ -1519,6 +1519,31 @@ fun.fit.plsr <- function(df, tuning.parameter = 4){
   
   varImp(model)
   
+}
+
+# function to add anova result text to ggplot boxplots:
+
+# HSD <- tHSD
+# 
+# flev <- 'Term'
+# 
+# y_coord <- 2
+
+generate_label_df <- function(HSD, flev, y_coord){
+  # Extract labels and factor levels from Tukey post-hoc 
+  Tukey.levels <- HSD[[flev]][,4]
+  Tukey.labels <- multcompLetters(Tukey.levels)['Letters']
+  plot.labels <- names(Tukey.labels[['Letters']])
+  
+  # Create a data frame out of the factor levels and Tukey's homogenous group letters
+  plot.levels <- data.frame(plot.labels, labels = Tukey.labels[['Letters']],
+                            stringsAsFactors = FALSE)
+  
+  # add y coordinate as V1 column:
+  
+  plot.levels$V1 <- rep(y_coord, nrow(plot.levels))
+  
+  return(plot.levels)
 }
 
   

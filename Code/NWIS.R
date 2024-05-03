@@ -532,8 +532,8 @@ length(unique(df.3$site_no))
 
 # save site lists for df.2 and df.3:
 
-save(df.2, file = 'Processed_Data/TP.df.2.sites.Rdata')
-save(df.3, file = 'Processed_Data/TP.df.3.sites.Rdata')
+# save(df.2, file = 'Processed_Data/TP.df.2.sites.Rdata')
+# save(df.3, file = 'Processed_Data/TP.df.3.sites.Rdata')
 
 #
 
@@ -1243,6 +1243,22 @@ df.loads <- df.loads %>% mutate(MAFWC = load/AAF)
 
 df.MAFWC <- df.loads %>% group_by(Name) %>% summarize(MAFWC = mean(MAFWC, na.rm = T))
 
+# df.MAFWC <- df.loads %>% group_by(Name) %>% summarize(MAFWC = mean(MAFWC, na.rm = T),mean_load = mean(load),AAF = mean(AAF)) %>% arrange(MAFWC)
+
+# just want to show that AAF by taking mean of annual means and mean of all flows is very close:
+
+# df.AAF.1 <- df.Q %>% 
+#   group_by(site_no, year) %>% 
+#   summarize(AAF = mean(Q, na.rm = T)) %>% 
+#   ungroup() %>% 
+#   group_by(site_no) %>% 
+#   summarize(AAF = mean(AAF, na.rm = T))
+# df.AAF.2 <- df.Q %>% 
+#   group_by(site_no) %>% 
+#   summarize(AAF= mean(Q, na.rm = T)) 
+# 
+# AAF.compare <- left_join(df.AAF.1, df.AAF.2, by = 'site_no')
+
 # 2) FWAC
 
 # using l.pred.C from hydrosep
@@ -1932,16 +1948,23 @@ df.importance <- as.data.frame(pc3a$rotation) %>% arrange(PC1, desc = F)
 
 # set up list of dataframes for response variables and predictors
 
-# OLS slope
-# OLS slope stormflow samples
-# MAFWC
-# FWAC
-# AANY.hydrosep
-# medC
-
 # names(df.setup)
 
 resp.vars <- c("OLS.Slope.1s", 'OLS.Slope.2s_medQ_post', "OLS.Slope.2s_hydrosep_post", "MAFWC", 'FWAC', "OLS.AANY.2s.medQ.method2", "OLS.AANY.2s.hydrosep.method2", "medC")
+
+# set up dataframes for the 4 response variables::
+
+l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% 
+                           filter(Name %in% df.g$Name) %>%
+                           select(i, v.pred.cols)) %>% 
+                           # rename(term = 1)) %>% 
+  purrr::set_names(resp.vars)
+
+# save:
+
+save(l.resp.allpred, file = 'Processed_Data/TP.l.resp.allpred.Rdata')
+
+#
 
 # # One last check of the site restrictions:
 # # I want to make sure that at least 25 samples make up the stormflow segmenet:
@@ -1966,20 +1989,6 @@ resp.vars <- c("OLS.Slope.1s", 'OLS.Slope.2s_medQ_post', "OLS.Slope.2s_hydrosep_
 #   facet_wrap(~Name, scales = 'free')
 # 
 # # looks good
-
-# set up dataframes for the 4 response variables::
-
-l.resp.allpred <- lapply(resp.vars, \(i) df.PCA %>% 
-                           filter(Name %in% df.g$Name) %>%
-                           select(i, v.pred.cols) %>% 
-                           rename(term = 1)) %>% 
-  purrr::set_names(resp.vars)
-
-# save:
-
-save(l.resp.allpred, file = 'Processed_Data/TP.l.resp.allpred.Rdata')
-
-#
 
 
 

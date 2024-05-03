@@ -45,6 +45,7 @@ library(caret)
 set.seed(123)
 library(ggbiplot)
 library(ggcorrplot)
+library(multcompView)
 library(tidyverse)
 
 sf_use_s2(TRUE) # for sf
@@ -72,10 +73,21 @@ l.TN <- l.resp.allpred
 load("C:/Users/ryrug/OneDrive - SUNY ESF/Research/Processed_Data/SRP.l.resp.allpred.Rdata")
 l.SRP <- l.resp.allpred
 
+# read in flow and C data (will use later):
 
+df.NWIS.Q<-read.csv("C:/PhD/CQ/Raw_Data/df.NWIS.Q.csv", colClasses = c(site_no = "character"))
+df.NWIS.TP<-read.csv("Raw_Data/df.NWIS.TP.csv", colClasses = c(site_no = "character"))
+df.NWIS.SRP<-read.csv("Raw_Data/df.NWIS.SRP.csv", colClasses = c(site_no = "character"))
 
+# read in ite DA:
 
+df.NWIS.TP_site_metadata<-read.csv("Raw_Data/df.NWIS.TP_site_metadata.csv", colClasses = c(site_no = "character"))
 
+df.DA<-df.NWIS.TP_site_metadata%>%
+  select(site_no, drain_area_va) %>% 
+  rename(Name = site_no, DA = drain_area_va)
+
+#
 
 
 
@@ -242,13 +254,17 @@ df.CAFO <- df.sf %>% st_set_geometry(NULL)
 
 
 
-#### Set up df for H2 and H3 ####
+#### Set up df.load ####
 
 # combine load response variables for each consituent:
 
 l.load <- c(l.TP[c(4,5,6,8)],l.TN[c(4,5,6,8)],l.SRP[c(4,5,6,8)])
 
-names(l.load) <- c('TP.MAFWC', 'TP.FWAC', 'TP.AANY.medQ', 'TP.medC','TN.MAFWC', 'TN.FWAC', 'TN.AANY.medQ', 'TN.medC','SRP.MAFWC', 'SRP.FWAC', 'SRP.AANY.medQ', 'SRP.medC')
+# rename response variables:
+
+names(l.load) <- c('TP.MAFWC', 'TP.FWAC', 'TP.AANY', 'TP.medC','TN.MAFWC', 'TN.FWAC', 'TN.AANY', 'TN.medC','SRP.MAFWC', 'SRP.FWAC', 'SRP.AANY', 'SRP.medC')
+
+# combine into df:
 
 df.load <- bind_rows(l.load, .id = 'Term')
 
@@ -268,7 +284,302 @@ df.load <- df.load %>% mutate(Consit = gsub("\\..*","",Term), .after = 1)
 
 df.load$FRAGUN <- df.load$FRAGUN/100
 
+# create variable of used predictors for analysis:
+
+pred.vars <- names(df.load %>% select(c('WWTP.fraction', 'CAFO_count', 'FRAGUN', "Elev_Median"), starts_with('HSG_'), c('R_PLANTNLCD06', "R_DEVNLCD06", 'R_FORESTNLCD06', "R_CROPSNLCD06", "R_PASTURENLCD06", "Corn",  'R_RIP100_PLANT', 'R_RIP100_DEV', "CSA_perc", "RIP.CSA.100")))
+
+# select only used predictors:
+
+df.load <- df.load %>% select(Name, Consit, Term, term, pred.vars)
+
+# create variable of new names for predictors:
+
+pred.vars <- c('WWTP', 'CAFO', 'FRAGUN', 'Elev', 'HSG.A', 'HSG.B', 'HSG.C', 'HSG.D', 'WP.Ag', 'WP.Dev', 'WP.Forest', 'WP.Crops', 'WP.Pasture', 'WP.Corn', 'RP.Ag', 'RP.Dev', 'WP.pCSA', 'RP.pCSA')
+
+# set names of df.load:
+
+names(df.load)[5:ncol(df.load)] <- pred.vars
+
 #
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### HSG issues ####
+
+# there appears to be a trend between WP forest and HSG C and D
+
+df.plot <- df.load %>% 
+  filter(Term == 'TP.medC') %>% 
+  select(Name,WP.Forest, starts_with('HSG.')) %>% 
+  mutate(HSG_Cover = rowSums(across(starts_with('HSG.')))) %>% 
+  arrange(HSG_Cover)
+
+# there isnt 100% cover of HSG for most watersheds
+
+# lets make a plot of percent HSG cover colored by WP forest:
+
+df.plot %>% 
+  pivot_longer(cols = starts_with('HSG.')) %>%
+  ggplot(., aes(x = name, y=value)) +
+  geom_boxplot() +
+  geom_point(position=position_jitterdodge(), aes(color = WP.Forest, size = WP.Forest))+
+  labs(x = '', y = 'Value',
+       color = 'WP Forest',
+       size = 'WP Forest')+
+  scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
+  scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
+                         high = 'blue',) +
+  guides(color= guide_legend(), size=guide_legend())
+
+# lets look at maps of HSG_*:
+
+# HSG_Cover:
+
+df.map <- df.plot %>% select(Name, HSG_Cover) %>% rename(Group = 2)
+
+# fun.map.DA(df.map$Name, df.map)
+
+# HSG_C:
+
+df.map <- df.plot %>% select(Name, HSG.C) %>% rename(Group = 2)
+
+# fun.map.DA(df.map$Name, df.map)
+
+# HSG_D:
+
+df.map <- df.plot %>% select(Name, HSG.D) %>% rename(Group = 2)
+
+# fun.map.DA(df.map$Name, df.map)
+
+# I am worried that lack of soils cover means CSA percent is not 'valid' 
+
+# maybe remove sites with less than 80% soils cover?
+
+df.map <- df.plot %>% select(Name, HSG_Cover) %>% rename(Group = 2) %>% filter(Group<.8)
+
+fun.map.DA(df.map$Name, df.map)
+
+# lets remove these three sites from future analysis because we can trust its HSG and CSA predictors:
+
+df.load <- df.load %>% filter(!Name %in% df.map$Name)
+
+# how many sites are not in TP, SRP, and TN:
+
+x <- split(df.load, f = df.load$Consit)
+
+y <- sapply(x, \(i) length(unique(i$Name)))
+
+y
+
+# remake map of watersheds colored by constituent availability:
+
+df.map.1 <- df.map.1 %>% filter(Name %in% unique(df.load$Name))
+
+# fun.map.DA(df.map.1$Name, df.map.1)
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Create descriptive statistic table ####
+
+# pivot df.load wider to put response variables in their own columns:
+
+df.table <- df.load %>% 
+  select(-Consit) %>% 
+  pivot_wider(names_from = Term, values_from = term)
+
+# merge DA information:
+
+df.table <- left_join(df.table, df.DA, by = 'Name')
+
+# rearrange columns:
+
+df.table <- subset(df.table, select=c(Name, DA, TP.MAFWC:SRP.medC,WWTP:WP.Corn, WP.pCSA, RP.Ag, RP.Dev, RP.pCSA))
+
+# create table of descritpvie staticstis:
+
+df.t <- df.table %>% 
+  pivot_longer(cols = -Name) %>%
+  mutate(name = factor(name, levels = names(df.table)[-1])) %>% 
+  group_by(name) %>%
+  summarise(Min = min(value, na.rm = T), 
+            Max = max(value, na.rm = T), 
+            Median = median(value, na.rm = T), 
+            Mean = mean(value, na.rm = T),
+            Std = sd(value, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(across(where(is.numeric), round, 2)) %>% 
+  as.data.frame() %>% 
+  mutate(name = sub(".*?\\.", "", name)) %>% 
+  mutate(name = sub("\\..*", "", name))
+
+# transpose df and set column names:
+
+df.t.T <- as.data.frame(t(df.t[,2:ncol(df.t)]))
+colnames(df.t.T) <- df.t[,1] 
+
+# make kable table:
+
+df.t.T %>%
+  kbl(align = "c",escape = F, caption = "Table") %>%
+  kable_classic(html_font = 'Times', font_size = 14, full_width = F) %>%
+  add_header_above(c("Statistics", " ", "TP (n = 54)" = 4, "TN (n = 23)" = 4, "SRP (n = 49)" = 4, " " = 4, "HSG" = 4, 'WP' = 7, 'RP' = 3))%>%
+  add_header_above(c(" " = 2, 'Response Variables'=12,'Predictor Variables (n = 54)' = 18))%>%
+  row_spec(seq(1,nrow(df.t.T),2), background="#FF000020")
+
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Boxplots of Predictors + Response Variables ####
+
+# setup df.plot:
+
+df.plot <- df.load %>% 
+  filter(Term == 'TP.medC') %>% 
+  select(pred.vars) %>%
+  mutate(CAFO = range01(CAFO),
+         Elev = range01(Elev)) %>% 
+  pivot_longer(cols = -WP.Forest)
+
+df.plot %>% 
+  mutate(name = factor(name, levels = names(df.load)[-c(1:4)])) %>% 
+  ggplot(., aes(x=name, y=value)) +
+  geom_boxplot() +
+  geom_point(position=position_jitterdodge(), aes(color = WP.Forest, size = WP.Forest))+
+  labs(x = 'Predictor Variable', y = 'Value',
+       color = 'WP Forest',
+       size = 'WP Forest')+
+  scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
+  scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
+                         high = 'blue',) +
+  guides(color= guide_legend(), size=guide_legend())+
+  theme(axis.text.x = element_text(angle = 35, vjust = 0.5, hjust=1))
+
+# response:
+
+# setup df.plot:
+
+df.plot <- df.load %>% 
+  select(Consit, Term, term, WP.Forest, WP.Ag)
+
+df.plot %>% 
+  mutate(Term = sub(".*?\\.", "", Term)) %>% 
+  ggplot(., aes(x=Term, y=term)) +
+  geom_boxplot() +
+  facet_wrap(~Consit, scales = 'free')+
+  geom_point(position=position_jitterdodge(), aes(color = WP.Forest, size = WP.Forest))+
+  labs(x = 'Response Variable', y = 'Value',
+       color = 'WP Forest',
+       size = 'WP Forest')+
+  scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
+  scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
+                         high = 'blue',) +
+  guides(color= guide_legend(), size=guide_legend())+
+  theme(axis.text.x = element_text(angle = 35, vjust = 0.5, hjust=1))
+
+# there appears to be some outliers
+
+# first thing to check is why MAFWC looks like there are outliers:
+
+check.term = 'TP.AANY'
+
+df.map <- df.load %>% 
+  select(Name, Consit, Term, term, WP.Forest, WP.Ag, RP.Ag) %>% 
+  filter(Term == check.term) %>%  # change between SRP, TN, TP
+  select(Name, term) %>% 
+  rename(Group = 2) %>% 
+  arrange(Group) %>% 
+  slice_max(Group, n=5)
+
+fun.map.DA(df.map$Name, df.map)
+
+# what about these sites makes them have the highest MAFWC?
+
+# look at WP and RP Ag for these sites:
+
+temp <- df.load %>% 
+  select(Name, Term, term, WP.Ag, RP.Ag) %>% 
+  filter(Term == check.term) %>% 
+  arrange(term)
+
+cor(temp$term, temp$WP.Ag)
+
+#
+
+
 
 
 
@@ -310,6 +621,18 @@ names(l.slope) <- c('TP.overal', 'TP.post', 'TN.overal', 'TN.post', 'SRP.overal'
 
 df.slope <- bind_rows(l.slope, .id = 'Term')
 
+df.slope$Term <- factor(df.slope$Term, levels = unique(df.slope$Term))
+
+# set up anova results:
+
+Term <- factor(df.slope$Term, levels = unique(df.slope$Term))
+term <- df.slope$term
+
+df.aov <- data.frame(Term = Term, term = term)
+
+a <- aov(term~Term, data=df.aov)
+tHSD <- TukeyHSD(a, ordered = FALSE, conf.level = 0.95)
+
 # boxplot with WP forest:
 
 ggplot(df.slope, aes(x=Term, y=term)) +
@@ -323,7 +646,8 @@ ggplot(df.slope, aes(x=Term, y=term)) +
   scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
   scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
                          high = 'blue',) +
-  guides(color= guide_legend(), size=guide_legend())
+  guides(color= guide_legend(), size=guide_legend())+
+  geom_text(data = generate_label_df(HSD = tHSD, flev = 'Term', y_coord = 1.9), aes(x = plot.labels, y = V1, label = labels))
 
 #
 
@@ -355,34 +679,6 @@ ggplot(df.slope, aes(x=Term, y=term)) +
 
 
 
-#### Boxplots of Predictors + Response Variables ####
-
-pred.vars <- names(df.load %>% select(c('WWTP.fraction', 'CAFO_count', 'FRAGUN', "Elev_Median"), starts_with('HSG_'), c('R_PLANTNLCD06', "R_DEVNLCD06", 'R_FORESTNLCD06', "R_CROPSNLCD06", "R_PASTURENLCD06", "Corn",  'R_RIP100_PLANT', 'R_RIP100_DEV', "CSA_perc", "RIP.CSA.100")))
-
-# lets make boxplots of the predictors:
-
-df.plot <- df.load %>% 
-  filter(Term == 'TP.medC') %>% 
-  select(pred.vars) %>% 
-  mutate(CAFO_count = range01(CAFO_count),
-         Elev_Median = range01(Elev_Median)) %>% 
-  pivot_longer(cols = -R_FORESTNLCD06)
-
-df.plot %>% 
-  # filter(!name %in% c('CAFO_count', 'Elev_Median')) %>% 
-  ggplot(., aes(x=name, y=value)) +
-    geom_boxplot() +
-    geom_point(position=position_jitterdodge(), aes(color = R_FORESTNLCD06, size = R_FORESTNLCD06))+
-    labs(x = 'Predictor Variable', y = 'Value',
-         color = 'WP Forest',
-         size = 'WP Forest')+
-    scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
-    scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
-                           high = 'blue',) +
-    guides(color= guide_legend(), size=guide_legend())+
-  theme(axis.text.x = element_text(angle = 35, vjust = 0.5, hjust=1))
-
-#
 
 
 
@@ -409,78 +705,9 @@ df.plot %>%
 
 
 
-#### HSG issues ####
 
-# there appears to be a trend between WP forest and HSG C and D
 
-df.plot <- df.load %>% 
-  filter(Term == 'TP.medC') %>% 
-  select(Name,R_FORESTNLCD06, starts_with('HSG_')) %>% 
-  mutate(HSG_Cover = rowSums(across(starts_with('HSG_')))) %>% 
-  arrange(HSG_Cover)
 
-# there isnt 100% cover of HSG for most watersheds
-
-# lets make a plot of percent HSG cover colored by WP forest:
-
-df.plot %>% 
-  pivot_longer(cols = starts_with('HSG_')) %>%
-  ggplot(., aes(x = name, y=value)) +
-  geom_boxplot() +
-  geom_point(position=position_jitterdodge(), aes(color = R_FORESTNLCD06, size = R_FORESTNLCD06))+
-  labs(x = '', y = 'Value',
-       color = 'WP Forest',
-       size = 'WP Forest')+
-  scale_size_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2))+
-  scale_color_continuous(limits=c(0, 1), breaks=seq(0, 1, by=0.2),low = 'red',
-                         high = 'blue',) +
-  guides(color= guide_legend(), size=guide_legend())
-
-# lets look at maps of HSG_*:
-
-# HSG_Cover:
-
-df.map <- df.plot %>% select(Name, HSG_Cover) %>% rename(Group = 2)
-
-fun.map.DA(df.map$Name, df.map)
-
-# HSG_C:
-
-df.map <- df.plot %>% select(Name, HSG_C) %>% rename(Group = 2)
-
-fun.map.DA(df.map$Name, df.map)
-
-# HSG_D:
-
-df.map <- df.plot %>% select(Name, HSG_D) %>% rename(Group = 2)
-
-fun.map.DA(df.map$Name, df.map)
-
-# I am worried that lack of soils cover means CSA percent is not 'valid' 
-
-# maybe remove sites with less than 80% soils cover?
-  
-df.map <- df.plot %>% select(Name, HSG_Cover) %>% rename(Group = 2) %>% filter(Group<.8)
-
-fun.map.DA(df.map$Name, df.map)
-
-# lets remove these three sites from future analysis because we can trust its HSG and CSA predictors:
-
-df.load <- df.load %>% filter(!Name %in% df.map$Name)
-
-# how many sites are not in TP, SRP, and TN:
-
-x <- split(df.load, f = df.load$Consit)
-
-y <- sapply(x, \(i) length(unique(i$Name)))
-
-y
-
-# remake map of watersheds colored by constituent availability:
-
-df.map.1 <- df.map.1 %>% filter(Name %in% unique(df.load$Name))
-
-# fun.map.DA(df.map.1$Name, df.map.1)
 
 
 #### H2 ####
@@ -489,18 +716,18 @@ df.map.1 <- df.map.1 %>% filter(Name %in% unique(df.load$Name))
 
 # the predictor variables for this section are:
 
-pred.vars.H2 <- names(df.load %>% select(c('WWTP.fraction', 
-                                           'CAFO_count', 
+pred.vars.H2 <- names(df.load %>% select(c('WWTP', 
+                                           'CAFO', 
                                            'FRAGUN', 
-                                           "Elev_Median",
-                                           'HSG_C', 
-                                           'HSG_D', 
-                                           'R_PLANTNLCD06',
-                                           "R_DEVNLCD06", 
-                                           'R_FORESTNLCD06', 
-                                           "R_CROPSNLCD06", 
-                                           "R_PASTURENLCD06", 
-                                           "Corn"
+                                           "Elev",
+                                           'HSG.C', 
+                                           'HSG.D', 
+                                           'WP.Ag',
+                                           "WP.Dev", 
+                                           'WP.Forest', 
+                                           "WP.Crops", 
+                                           "WP.Pasture", 
+                                           "WP.Corn"
                                            ))) 
 
 # make correlation matrix plot for each consit:
@@ -516,26 +743,26 @@ p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars.H2)),
            insig = "blank",
            title = names(l.plot)[i]))
 
-ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
+# ggarrange(plotlist = p.list, ncol = 3, common.legend = T, legend = 'right')
 
 # set up predictor list for each consit:
 
-pred.vars.H2.sub <- names(df.load %>% select(c('WWTP.fraction',
-                                               'CAFO_count',
-                                               # 'FRAGUN',
-                                               "Elev_Median",
-                                               'HSG_C', 
-                                               'HSG_D', 
-                                               # 'R_PLANTNLCD06',
-                                               "R_DEVNLCD06",
-                                               # 'R_FORESTNLCD06', 
-                                               "R_CROPSNLCD06",
-                                               "R_PASTURENLCD06",
-                                               # "Corn"
+pred.vars.H2.sub <- names(df.load %>% select(c('WWTP', 
+                                               'CAFO', 
+                                               # 'FRAGUN', 
+                                               "Elev",
+                                               'HSG.C', 
+                                               'HSG.D', 
+                                               # 'WP.Ag',
+                                               "WP.Dev", 
+                                               # 'WP.Forest', 
+                                               "WP.Crops",
+                                               "WP.Pasture", 
+                                               # "WP.Corn"
                                                ))) 
 
 l.pred.vars <- list(SRP = pred.vars.H2.sub,
-                    TN = pred.vars.H2.sub[! pred.vars.H2.sub  %in% c('R_DEVNLCD06')],
+                    TN = pred.vars.H2.sub[! pred.vars.H2.sub  %in% c('WP.Dev')],
                     TP = pred.vars.H2.sub)
 
 # split df.load by consit:
@@ -578,6 +805,40 @@ ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
   geom_point()+
   geom_line()
 
+# extract signifncat coefficents and their estimates for each model:
+
+df.H2.coef <- bind_rows(lapply(l.lm, \(i) data.frame(summary(i)$coefficients[ ,c(1,4)]) %>% rename(estimate = 1, sig = 2) %>% filter(sig<0.1) %>% mutate(term = row.names(.), .before = 1) %>% select(-sig)), .id = 'Model')
+
+row.names(df.H2.coef) <- 1:nrow(df.H2.coef)
+
+# set up df.table:
+
+df.t <- df.H2.coef %>% 
+  mutate(estimate = if_else(estimate>0, '+', '-')) %>% # convert estimate column into character of +/-
+  filter(!term == '(Intercept)') %>% # remove intercept terms
+  as.data.frame() %>% 
+  pivot_wider(names_from = term, values_from = estimate) %>%
+  mutate(Model = sub(".*?\\.", "", Model)) %>%    # remove consit prefix from model term (will add header above in kable)
+  as.data.frame(.)
+
+# transpose df and set column names:
+
+df.t.T <- as.data.frame(t(df.t[,2:ncol(df.t)]))
+colnames(df.t.T) <- df.t[,1] 
+
+# make kable table:
+
+options(knitr.kable.NA = '')
+
+df.t.T %>%
+  kbl(align = "c",escape = F, caption = "Table") %>%
+  kable_classic(html_font = 'Times', font_size = 14, full_width = F) %>%
+  add_header_above(c("", "SRP" = 4, "TN" = 4, "TP" = 3))%>%
+  # add_header_above(c(" " = 2, 'Response Variables'=12,'Predictor Variables (n = 54)' = 18))%>%
+  row_spec(seq(1,nrow(df.t.T),2), background="#FF000020")
+
+#
+
 # save models:
 
 l.lm.H2 <- l.lm
@@ -613,20 +874,20 @@ l.lm.H2 <- l.lm
 
 # add RIP predictors to set from H2:
 
-pred.vars.H3 <- names(df.load %>% select(c('WWTP.fraction', 
-                                           'CAFO_count', 
-                                           'FRAGUN', 
-                                           "Elev_Median",
-                                           'HSG_C', 
-                                           'HSG_D', 
-                                           'R_PLANTNLCD06',
-                                           "R_DEVNLCD06", 
-                                           'R_FORESTNLCD06', 
-                                           "R_CROPSNLCD06", 
-                                           "R_PASTURENLCD06", 
-                                           "Corn", 
-                                           'R_RIP100_PLANT',
-                                           'R_RIP100_DEV'
+pred.vars.H3 <- names(df.load %>% select(c('WWTP', 
+                                           'CAFO', 
+                                           'FRAGUN',
+                                           "Elev",
+                                           'HSG.C', 
+                                           'HSG.D', 
+                                           'WP.Ag',
+                                           "WP.Dev", 
+                                           'WP.Forest',
+                                           "WP.Crops",
+                                           "WP.Pasture", 
+                                           "WP.Corn",
+                                           'RP.Ag',
+                                           'RP.Dev'
 )))
 
 # make correlation matrix plot for each consit:
@@ -646,24 +907,24 @@ p.list <- lapply(1:3, \(i) ggcorrplot(cor(l.plot[[i]] %>% select(pred.vars.H3)),
 
 # set up predictor list for each consit:
 
-pred.vars.H3.sub <- names(df.load %>% select(c('WWTP.fraction', 
-                                               'CAFO_count', 
+pred.vars.H3.sub <- names(df.load %>% select(c('WWTP', 
+                                               'CAFO', 
                                                # 'FRAGUN', 
-                                               "Elev_Median",
-                                               'HSG_C', 
-                                               'HSG_D', 
-                                               # 'R_PLANTNLCD06',
-                                               "R_DEVNLCD06", 
-                                               # 'R_FORESTNLCD06', 
-                                               "R_CROPSNLCD06", 
-                                               "R_PASTURENLCD06", 
-                                               # "Corn", 
-                                               'R_RIP100_PLANT',
-                                               'R_RIP100_DEV'
+                                               "Elev",
+                                               'HSG.C', 
+                                               'HSG.D', 
+                                               # 'WP.Ag',
+                                               "WP.Dev", 
+                                               # 'WP.Forest', 
+                                               "WP.Crops",
+                                               "WP.Pasture", 
+                                               # "WP.Corn" 
+                                               'RP.Ag',
+                                               'RP.Dev'
 )))
 
 l.pred.vars <- list(SRP = pred.vars.H3.sub,
-                    TN = pred.vars.H3.sub[! pred.vars.H2.sub  %in% c('R_DEVNLCD06',"Elev_Median")],
+                    TN = pred.vars.H3.sub[! pred.vars.H2.sub  %in% c('WP.Dev',"Elev")],
                     TP = pred.vars.H3.sub)
 
 # split df.load by consit:
@@ -705,6 +966,49 @@ df.VIF <- bind_rows(l.VIF, .id = 'Term') %>%
 ggplot(df.VIF, aes(x = Term, y = value, color = name, group = name))+
   geom_point()+
   geom_line()
+
+# extract signifncat coefficents and their estimates for each model:
+
+df.H2.coef <- bind_rows(lapply(l.lm, \(i) data.frame(summary(i)$coefficients[ ,c(1,4)]) %>% rename(estimate = 1, sig = 2) %>% filter(sig<0.1) %>% mutate(term = row.names(.), .before = 1) %>% select(-sig)), .id = 'Model')
+
+row.names(df.H2.coef) <- 1:nrow(df.H2.coef)
+
+# set up df.table:
+
+df.t <- df.H2.coef %>% 
+  mutate(estimate = if_else(estimate>0, '+', '-')) %>% # convert estimate column into character of +/-
+  filter(!term == '(Intercept)') %>% # remove intercept terms
+  as.data.frame() %>% 
+  pivot_wider(names_from = term, values_from = estimate) %>%
+  mutate(Model = sub(".*?\\.", "", Model)) %>%    # remove consit prefix from model term (will add header above in kable)
+  as.data.frame(.)
+
+# transpose df and set column names:
+
+df.t.T <- as.data.frame(t(df.t[,2:ncol(df.t)]))
+colnames(df.t.T) <- df.t[,1] 
+
+# make kable table:
+
+options(knitr.kable.NA = '')
+
+df.t.T %>%
+  kbl(align = "c",escape = F, caption = "Table") %>%
+  kable_classic(html_font = 'Times', font_size = 14, full_width = F) %>%
+  add_header_above(c("", "SRP" = 4, "TN" = 4, "TP" = 3))%>%
+  # add_header_above(c(" " = 2, 'Response Variables'=12,'Predictor Variables (n = 54)' = 18))%>%
+  row_spec(seq(1,nrow(df.t.T),2), background="#FF000020")
+
+#
+
+
+
+
+
+
+
+
+
 
 # save:
 
